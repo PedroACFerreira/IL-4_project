@@ -1,0 +1,554 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<WorkflowBuilder Version="2.6.3"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xmlns:io="clr-namespace:Bonsai.IO;assembly=Bonsai.System"
+                 xmlns:rx="clr-namespace:Bonsai.Reactive;assembly=Bonsai.Core"
+                 xmlns:cv="clr-namespace:Bonsai.Vision;assembly=Bonsai.Vision"
+                 xmlns:scr="clr-namespace:Bonsai.Scripting;assembly=Bonsai.Scripting"
+                 xmlns="https://bonsai-rx.org/2018/workflow">
+  <Workflow>
+    <Nodes>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="io:GetFiles">
+          <io:Path>C:\Users\pedro\Desktop\Carolina\EPM 15_05</io:Path>
+          <io:SearchPattern>*.avi</io:SearchPattern>
+          <io:SearchOption>AllDirectories</io:SearchOption>
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:Concat" />
+      </Expression>
+      <Expression xsi:type="SelectMany">
+        <Workflow>
+          <Nodes>
+            <Expression xsi:type="WorkflowInput">
+              <Name>Source1</Name>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:RepeatCount">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="WorkflowOutput" />
+          </Nodes>
+          <Edges>
+            <Edge From="0" To="1" Label="Source1" />
+            <Edge From="1" To="2" Label="Source1" />
+          </Edges>
+        </Workflow>
+      </Expression>
+      <Expression xsi:type="CreateObservable">
+        <Workflow>
+          <Nodes>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>FileName</Name>
+            </Expression>
+            <Expression xsi:type="PropertyMapping">
+              <PropertyMappings>
+                <Property Name="FileName" />
+              </PropertyMappings>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:FileCapture">
+                <cv:FileName>C:\Users\pedro\Desktop\Carolina\EPM 15_05\Trial 9.avi</cv:FileName>
+                <cv:PlaybackRate>100000000</cv:PlaybackRate>
+                <cv:StartPosition>0</cv:StartPosition>
+                <cv:PositionUnits>Frames</cv:PositionUnits>
+                <cv:Loop>false</cv:Loop>
+                <cv:Playing>true</cv:Playing>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="GroupWorkflow">
+              <Name>TIME</Name>
+              <Description>TIME</Description>
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:Timestamp" />
+                  </Expression>
+                  <Expression xsi:type="MemberSelector">
+                    <Selector>Timestamp</Selector>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:Take">
+                      <rx:Count>1</rx:Count>
+                    </Combinator>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:CombineLatest" />
+                  </Expression>
+                  <Expression xsi:type="Subtract" />
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="1" To="2" Label="Source1" />
+                  <Edge From="2" To="4" Label="Source1" />
+                  <Edge From="2" To="3" Label="Source1" />
+                  <Edge From="3" To="4" Label="Source2" />
+                  <Edge From="4" To="5" Label="Source1" />
+                  <Edge From="5" To="6" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:ColorBalance">
+                <cv:Scale>
+                  <cv:Val0>3.01</cv:Val0>
+                  <cv:Val1>0.78</cv:Val1>
+                  <cv:Val2>1.72</cv:Val2>
+                  <cv:Val3>1.26</cv:Val3>
+                </cv:Scale>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:Grayscale" />
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:BackgroundSubtraction">
+                <cv:BackgroundFrames>20</cv:BackgroundFrames>
+                <cv:AdaptationRate>0</cv:AdaptationRate>
+                <cv:ThresholdValue>55</cv:ThresholdValue>
+                <cv:ThresholdType>Binary</cv:ThresholdType>
+                <cv:SubtractionMethod>Dark</cv:SubtractionMethod>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:Smooth">
+                <cv:SmoothType>Median</cv:SmoothType>
+                <cv:Size1>11</cv:Size1>
+                <cv:Size2>7</cv:Size2>
+                <cv:Sigma1>0</cv:Sigma1>
+                <cv:Sigma2>0</cv:Sigma2>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Take">
+                <rx:Count>18300</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Skip">
+                <rx:Count>300</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="scr:PythonTransform">
+              <scr:Name>Settings</scr:Name>
+              <scr:Script>from System import Tuple
+
+#############################################
+#    Here's the values to be set manually   #
+################################################################################
+
+VideoFR = 30      # Video frame rate (Frames per second)
+TBinsEnable = 1   # Do you want time bins? (1/0)
+Min = 10          # Minutes per time bin
+Ratio = 0.14      # Conversion ratio pixel to centimeter
+Error1 = 25       # Maximum number of pixels to move in one frame
+Error5 = 100      # Maximum number pixels to move in five frames
+Threshold = 1     # Minimum number of pixels to move on average in five frames
+NumTBins = 6      # Total number of time bins pretended
+
+################################################################################
+
+TBins = [TBinsEnable,NumTBins]
+
+################################################################################
+
+@returns(Tuple[int,list,float,float,float,float,float])
+def process(value):
+
+  global VideoFR
+  global Min
+  global Ratio
+  global Error1
+  global Error5
+  global Threshold
+  global TBins
+
+  return Tuple.Create(VideoFR,TBins,float(Min),float(Ratio),float(Error1),float(Error5),float(Threshold))</scr:Script>
+            </Expression>
+            <Expression xsi:type="GroupWorkflow">
+              <Name>ROI</Name>
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="cv:RoiActivity">
+                      <cv:Regions>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>153</cv:X>
+                            <cv:Y>140</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>197</cv:X>
+                            <cv:Y>139</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>202</cv:X>
+                            <cv:Y>187</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>157</cv:X>
+                            <cv:Y>184</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>144</cv:X>
+                            <cv:Y>5</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>199</cv:X>
+                            <cv:Y>3</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>192</cv:X>
+                            <cv:Y>143</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>157</cv:X>
+                            <cv:Y>141</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>164</cv:X>
+                            <cv:Y>179</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>187</cv:X>
+                            <cv:Y>179</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>222</cv:X>
+                            <cv:Y>297</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>134</cv:X>
+                            <cv:Y>297</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>1</cv:X>
+                            <cv:Y>118</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>153</cv:X>
+                            <cv:Y>136</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>155</cv:X>
+                            <cv:Y>179</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>3</cv:X>
+                            <cv:Y>198</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>342</cv:X>
+                            <cv:Y>122</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>193</cv:X>
+                            <cv:Y>141</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>194</cv:X>
+                            <cv:Y>181</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>343</cv:X>
+                            <cv:Y>191</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                      </cv:Regions>
+                      <cv:Operation>Sum</cv:Operation>
+                    </Combinator>
+                  </Expression>
+                  <Expression xsi:type="GroupWorkflow">
+                    <Name>Index</Name>
+                    <Workflow>
+                      <Nodes>
+                        <Expression xsi:type="WorkflowInput">
+                          <Name>Source1</Name>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>3</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>0</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>1</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>2</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>4</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:Zip" />
+                        </Expression>
+                        <Expression xsi:type="MemberSelector">
+                          <Selector>Item2.Activity.Val0</Selector>
+                        </Expression>
+                        <Expression xsi:type="WorkflowOutput" />
+                      </Nodes>
+                      <Edges>
+                        <Edge From="0" To="1" Label="Source1" />
+                        <Edge From="0" To="2" Label="Source1" />
+                        <Edge From="0" To="3" Label="Source1" />
+                        <Edge From="0" To="4" Label="Source1" />
+                        <Edge From="0" To="5" Label="Source1" />
+                        <Edge From="0" To="6" Label="Source6" />
+                        <Edge From="1" To="6" Label="Source4" />
+                        <Edge From="2" To="6" Label="Source1" />
+                        <Edge From="3" To="6" Label="Source2" />
+                        <Edge From="4" To="6" Label="Source3" />
+                        <Edge From="5" To="6" Label="Source5" />
+                        <Edge From="6" To="7" Label="Source1" />
+                        <Edge From="6" To="8" Label="Source1" />
+                      </Edges>
+                    </Workflow>
+                  </Expression>
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="1" To="2" Label="Source1" />
+                  <Edge From="2" To="3" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Zip" />
+            </Expression>
+            <Expression xsi:type="scr:PythonTransform">
+              <scr:Name>Time in ROI</scr:Name>
+              <scr:Script>from System import Tuple
+
+# This node calculates the time spent in each ROI.
+
+# Settings variables call
+
+VideoFR = 0  # Video frame rate
+
+################
+
+TimeSpent = []
+
+c = 0
+b = 0
+MaxIndex = 0
+counter = 0
+
+################
+
+@returns(Tuple[float,float,float,float,float,float])
+def process(value):
+  
+
+  global VideoFR
+  global TimeSpent
+  global c, b
+  global MaxIndex
+  global counter
+
+  b += 1 
+
+  VideoFR = value.Item2.Item1
+ 
+  Time = value.Item1.TotalMilliseconds
+
+  Center = value.Item3[0].Activity.Val0
+  ClosedTop = value.Item3[1].Activity.Val0
+  ClosedBottom = value.Item3[2].Activity.Val0
+  OpenLeft = value.Item3[3].Activity.Val0
+  OpenRight = value.Item3[4].Activity.Val0
+
+  Positions = [Center,ClosedTop,ClosedBottom,OpenLeft,OpenRight]
+
+  for i in Positions:
+    c = c + i
+
+  if c &gt; 1:
+    MaxIndex = Positions.index(max(Positions))
+
+  if Time == 0:
+    Frame = 0
+    c = 0
+    MaxIndex = 0
+    counter = 0
+    TimeSpent = []
+
+
+# Adds up time spent in each place each frame
+
+  if counter == 0:
+    for i in range(5):
+      TimeSpent.append(float(0))
+    counter = 1
+
+  if c &gt; 1:
+    c = 0
+    if MaxIndex &lt; 5:
+      TimeSpent[MaxIndex] += 1
+
+# Results
+
+  return Tuple.Create(TimeSpent[0]/VideoFR,TimeSpent[1]/VideoFR,TimeSpent[2]/VideoFR,TimeSpent[3]/VideoFR,TimeSpent[4]/VideoFR,ClosedTop)</scr:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:TakeLast">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>FileName</Name>
+            </Expression>
+            <Expression xsi:type="scr:PythonTransform">
+              <scr:Name>NameToCSV</scr:Name>
+              <scr:Script>@returns(str)
+def process(value):
+  
+  a = value.split('\\')
+  b = a[-1].split('.')
+  c = b[0]
+  d = ""
+  for i in a[:-2]:
+    d = d + i + '\\'
+  e = d + "Data_EPM" + '.txt'
+
+  return e</scr:Script>
+            </Expression>
+            <Expression xsi:type="PropertyMapping">
+              <PropertyMappings>
+                <Property Name="FileName" />
+              </PropertyMappings>
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>FileName</Name>
+            </Expression>
+            <Expression xsi:type="scr:PythonTransform">
+              <scr:Name>NameToCSV</scr:Name>
+              <scr:Script>a = []
+b = []
+c = ""
+
+@returns(str)
+def process(value):
+  
+  global a
+  global b 
+  global c
+
+  a = value.split('\\')
+  b = a[-1].split('.')
+  VideoName = b[0]
+
+  return VideoName</scr:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Zip" />
+            </Expression>
+            <Expression xsi:type="scr:PythonTransform">
+              <scr:Name>MUDA ESTE</scr:Name>
+              <scr:Description />
+              <scr:Script>a=0
+
+@returns(str)
+def process(value):
+  global a
+  AnimalID = ""
+  Condition = ""
+
+  Filename = value.Item2
+  
+  if a == 0:
+    a = 1
+    return "Filename;" + "Animal ID;" + "Condition;" + "Center;" + "Closed Arms;" + "Open Arms\n" + Filename + ";" + AnimalID + ";" + Condition + ";" + str(value.Item1.Item1) + ";" + str(value.Item1.Item2 + value.Item1.Item3) + ";" + str(value.Item1.Item4+value.Item1.Item5)
+
+  else:
+        return Filename + ";" + AnimalID + ";" + Condition + ";" + str(value.Item1.Item1) + ";" + str(value.Item1.Item2 + value.Item1.Item3) + ";" + str(value.Item1.Item4+value.Item1.Item5)</scr:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="io:TextWriter">
+                <io:FileName>C:\Users\pedro\Desktop\Carolina\Data_EPM.txt</io:FileName>
+                <io:Suffix>None</io:Suffix>
+                <io:Buffered>true</io:Buffered>
+                <io:Overwrite>true</io:Overwrite>
+                <io:Append>true</io:Append>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="WorkflowOutput" />
+            <Expression xsi:type="WorkflowInput">
+              <Name>Source1</Name>
+            </Expression>
+            <Expression xsi:type="ReplaySubject">
+              <Name>FileName</Name>
+              <BufferSize xsi:nil="true" />
+            </Expression>
+          </Nodes>
+          <Edges>
+            <Edge From="0" To="1" Label="Source1" />
+            <Edge From="1" To="2" Label="Source1" />
+            <Edge From="2" To="3" Label="Source1" />
+            <Edge From="2" To="4" Label="Source1" />
+            <Edge From="3" To="12" Label="Source1" />
+            <Edge From="4" To="5" Label="Source1" />
+            <Edge From="5" To="6" Label="Source1" />
+            <Edge From="6" To="7" Label="Source1" />
+            <Edge From="7" To="8" Label="Source1" />
+            <Edge From="8" To="9" Label="Source1" />
+            <Edge From="9" To="10" Label="Source1" />
+            <Edge From="9" To="11" Label="Source1" />
+            <Edge From="10" To="12" Label="Source2" />
+            <Edge From="11" To="12" Label="Source3" />
+            <Edge From="12" To="13" Label="Source1" />
+            <Edge From="13" To="14" Label="Source1" />
+            <Edge From="14" To="20" Label="Source1" />
+            <Edge From="15" To="16" Label="Source1" />
+            <Edge From="16" To="17" Label="Source1" />
+            <Edge From="17" To="22" Label="Source2" />
+            <Edge From="18" To="19" Label="Source1" />
+            <Edge From="19" To="20" Label="Source2" />
+            <Edge From="20" To="21" Label="Source1" />
+            <Edge From="21" To="22" Label="Source1" />
+            <Edge From="22" To="23" Label="Source1" />
+            <Edge From="24" To="25" Label="Source1" />
+          </Edges>
+        </Workflow>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:Concat" />
+      </Expression>
+    </Nodes>
+    <Edges>
+      <Edge From="0" To="1" Label="Source1" />
+      <Edge From="1" To="2" Label="Source1" />
+      <Edge From="2" To="3" Label="Source1" />
+      <Edge From="3" To="4" Label="Source1" />
+    </Edges>
+  </Workflow>
+</WorkflowBuilder>
