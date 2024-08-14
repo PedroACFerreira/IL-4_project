@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: Ferreira
   given-names: Pedro
-orcid: https://orcid.org/0000-0002-9571-0384
-title: Unraveling the role of il-4 in the maturation and function of the cerebellar circuit: Implications for neuropsychiatric diseases
+  orcid: "https://orcid.org/0000-0002-9571-0384"
+title: "Unraveling the role of il-4 in the maturation and function of the cerebellar circuit: Implications for neuropsychiatric diseases"
 version: NCBLv0.0.1
 date-released: 2024-08-13
