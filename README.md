@@ -1,8 +1,11 @@
 [![DOI](https://zenodo.org/badge/816819106.svg)](https://zenodo.org/doi/10.5281/zenodo.13315695)
 
+[![DOI:10.1016/j.neuron.2023.09.031](http://img.shields.io/badge/DOI-10.1016/j.neuron.2023.09.031-B31B1B.svg)](https://doi.org/10.1016/j.neuron.2023.09.031)
+
+
 # IL-4 Project Codebase
 
-This repository contains all the code used under the scope of the PhD Thesis
+This repository contains all the code used under the scope of the PhD Thesis:
 
 **"Unraveling the role of il-4 in the maturation and function of the cerebellar circuit: Implications for neuropsychiatric diseases"** by Pedro Ferreira
 
