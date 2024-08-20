@@ -57,10 +57,19 @@ def process(srcDir, dstDir, currentDir, fileName):
   IJ.run("Properties...", "channels=1 slices=1 frames=1 pixel_width=" + str(PW) + " pixel_height=" + str(PH) + " voxel_depth=1")
   IJ.run("Duplicate...", " "); # Duplicate the image
   IJ.run("8-bit"); # Convert the duplicated image to 8-bit = grey, so we can do a threshold
-  IJ.run("Threshold...","BlackBackground = " + BG); # Get everything that is not the background. If the background is black, change to True
+ 
+  # Check background type, set it for the Threshold function
+  if OBG == "Bright":
+  	TBG = False
+  else:
+  	TBG = True
+  
+  # Get everything that is not the background
+  IJ.run("Threshold...","BlackBackground = " + TBG); 
   # Do this manually once so you know the values that select everything but the background, meaning, whole image red, background white
   # You can find this at Image > Adjust > Threshold   (Not Color Threshold)
   
+  # Check background type, set adequate values for the Threshold function
   if OBG == "Bright":
   	IJ.setThreshold(0, 254)  
   else:
@@ -85,21 +94,20 @@ def process(srcDir, dstDir, currentDir, fileName):
   IJ.run("Despeckle")
   IJ.run("Despeckle")
   
+  # If chosen, remove bright or dark spots (outliers), of the same type as the cells (Bright or Dark)
+  # Check settings manually before using this
   if OT:
- 	if BG == "Dark":
- 		OTBG = "Bright"
- 	else:
- 		OTBG = "Dark"
- 		
-  	IJ.run("Remove Outliers...", "radius=" + str(OTR) +" threshold=50 which=" + OTBG)
+
+  	IJ.run("Remove Outliers...", "radius=" + str(OTR) +" threshold=50 which=" + BG)
   	
   IJ.run("Gaussian Blur...", "sigma=4")
   
   # Calculate number of cells. Do this manually beforehand to estimate the correct value for prominence
-  # If you want to exclude cells at the edges, add the word exclude after strict. If background is dark, remove light
+  # If you want to exclude cells at the edges, add the word exclude after strict. 
   # You can find this function at Process > Find Maxima
   # Click preview selection, then change the prominence value until it detects what you want.  Do this with a couple of images to get a feel for the correct value
   
+  #Set proper background color according to cell type (Bright or Dark)
   if BG == "Dark":
   	FMBG = "light"
   else:
@@ -107,13 +115,16 @@ def process(srcDir, dstDir, currentDir, fileName):
   	
   IJ.run("Find Maxima...", "prominence=" + str(PR) + " strict "+ FMBG + " output=Count")
   
-  # Save results and then save to a file in the destination directory with _MLI appended to the filename
+  # Get the results from the ResultsTable
   table = ResultsTable.getResultsTable()
   Count=table.getValue("Count", 1)
   Area=table.getValue("Area", 0)
-  Density=float(Count)/float(Area)
-  Final.append([fileName.split(".")[0],"","",Count,Area,Density*1000000])
+  Density=float(Count)/float(Area)*1000000
   
+  # Store results in a list of lists
+  Final.append([fileName.split(".")[0],"","",Count,Area,Density])
+  
+  # Clear ResultsTable
   IJ.run("Clear Results")
   
   # Close all windows before opening the next	
@@ -122,25 +133,29 @@ def process(srcDir, dstDir, currentDir, fileName):
   for i in range(number):
 	  IJ.selectWindow(windows[i])
 	  IJ.run("Close")
-	  
+
+  # Clean IJ "cache"
   IJ.run("Collect Garbage")
   
 run()
 
+# When all is done, create a new ResultsTable to save into a CSV
 tb = ResultsTable()
 rt = tb.getResultsTable()
 
+# Each list from the previous list of lists is added as a line, one at a time  
 for line in Final:
 	for val in range(len(line)):
 		rt.addValue(Columns[val], line[val])
 	if line != Final[-1]:
 		rt.addRow()
 
+# Remove row numbers, they get saved to CSV
 rt.showRowIndexes(False)	
 
+# Save to CSV in the chosen path with the chosen filename
 dstDir = dstFile.getAbsolutePath()
 rt.saveAs(dstDir + "\\" + savename + ".csv")
-IJ.run("Clear Results")
-	
+
+# Clean IJ "cache"
 IJ.run("Collect Garbage")
-	  
