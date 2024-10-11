@@ -5,11 +5,12 @@
 
 # IL-4 Project Codebase
 
-This repository contains all the code used under the scope of the PhD Thesis (Work in Progress):
+This repository contains all the code used under the scope of the PhD Thesis:
 
 **"Unraveling the role of il-4 in the maturation and function of the cerebellar circuit: Implications for neuropsychiatric diseases"** by Pedro Ferreira
 
 All code was written by Pedro Ferreira
+(Work in Progress)
 
 ##
 Repository includes the following:
