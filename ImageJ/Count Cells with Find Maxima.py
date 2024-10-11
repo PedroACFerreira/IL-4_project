@@ -159,3 +159,4 @@ rt.saveAs(dstDir + "\\" + savename + ".csv")
 
 # Clean IJ "cache"
 IJ.run("Collect Garbage")
+	  
