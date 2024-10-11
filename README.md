@@ -17,7 +17,7 @@ Repository includes the following:
   - Bonsai Workflow - Motor behavior quantification
   - Bonsai Workflow - Time spent in ROI quantification
   - Python - Running Wheel data extraction and quantification - GUI
-  - Python - dLight data quantification (multiple)
+  - Python - dLight data quantification (multiple) (TBD)
   - ImageJ Macro - Convex hull from Imaris Surface
   - ImageJ Macro - Count cells with Find Maxima
 
