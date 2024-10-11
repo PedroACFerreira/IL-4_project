@@ -1,0 +1,2954 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<WorkflowBuilder Version="2.8.5"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xmlns:ipy="clr-namespace:Bonsai.Scripting.IronPython;assembly=Bonsai.Scripting.IronPython"
+                 xmlns:rx="clr-namespace:Bonsai.Reactive;assembly=Bonsai.Core"
+                 xmlns:cv="clr-namespace:Bonsai.Vision;assembly=Bonsai.Vision"
+                 xmlns:p1="clr-namespace:OpenCV.Net;assembly=OpenCV.Net"
+                 xmlns="https://bonsai-rx.org/2018/workflow">
+  <Workflow>
+    <Nodes>
+      <Expression xsi:type="Annotation">
+        <Name>Start here!</Name>
+        <Text><![CDATA[]]></Text>
+      </Expression>
+      <Expression xsi:type="ipy:PythonSource">
+        <ipy:Script>import clr
+clr.AddReference('System')
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
+clr.AddReference("System.Threading")
+clr.AddReference("OpenCV.Net")
+from OpenCV.Net import *
+from System.Threading import ApartmentState, Thread, ThreadStart
+import array
+from System import Array, String, Environment, Tuple
+# Import Python modules
+
+from os import path, getcwd, listdir
+
+from System.Windows.Forms import *
+from System.Drawing import *
+
+error = True # Throw an error if something goes wrong
+# Standard error message
+message = "Something went wrong, try again!"
+paths = ""
+savefolder = ""
+folderName = ""
+pathlist = []
+selected = False
+
+@returns(Tuple[Array[str],str])
+def generate():
+  global error, message, paths, savefolder, folderName, pathlist, selected
+  # Define our popup window
+
+  class getFolder(Form):
+  
+    def __init__(self):
+    
+      # Main settings
+      self.Text = 'Input settings here' # Window title
+      self.MinimizeBox = False; # Remove maximize button
+      self.MaximizeBox = False; # Remove minimize button
+      # Set window height and lenght
+      WinHeight = 300 
+      WinLenght = 500
+      self.ClientSize = Size(WinLenght, WinHeight)
+      # Set window style
+      self.FormBorderStyle = FormBorderStyle.Fixed3D
+      self.StartPosition = FormStartPosition.CenterScreen
+
+      # Create list for all objects
+      Objects = []
+
+      self.directory = FolderBrowserDialog()
+      self.directory.Description = "Select video folder."
+
+      self.directory2 = FolderBrowserDialog()
+      self.directory2.Description = "Select save folder."
+
+      self.drbutton = Button() # Create a button
+      self.drbutton.Text = "Select video folder" # Button text
+      self.drbutton.Width = 250
+      self.drbutton.Location = Point(125, self.drbutton.Height)
+      self.drbutton.Click += self.getdir # Run function on click. Needs to be +=, not =
+      Objects.append(self.drbutton)
+
+      self.drlabel = Label() # Create label
+      self.drlabel.Text = "" # Write text
+      self.drlabel.Location = Point(125, self.drbutton.Bottom + 5) # Set location X, Y
+      self.drlabel.Width = 250 # Button width
+      self.drlabel.TextAlign = ContentAlignment.MiddleCenter # Align the button up-down and left-right
+      Objects.append(self.drlabel) # Append to objects list
+
+      self.drlabel2 = Label() # Create label
+      self.drlabel2.Text = "Select extension" # Write text
+      self.drlabel2.Location = Point(0, self.drlabel.Bottom + 5) # Set location X, Y
+      self.drlabel2.Width = 280 # Button width
+      self.drlabel2.TextAlign = ContentAlignment.MiddleRight # Align the button up-down and left-right
+      Objects.append(self.drlabel2) # Append to objects list
+
+      self.extext = TextBox()
+      self.extext.Text = ".avi"
+      self.extext.Location = Point(280, self.drlabel2.Top)
+      self.extext.Width = 50
+      Objects.append(self.extext)
+
+      self.drbutton2 = Button() # Create a button
+      self.drbutton2.Text = "Select save folder" # Button text
+      self.drbutton2.Width = 250
+      self.drbutton2.Location = Point(125, self.drlabel2.Bottom + 5)
+      self.drbutton2.Click += self.getdir2
+      Objects.append(self.drbutton2)
+
+      self.drlabel3 = Label() # Create label
+      self.drlabel3.Text = "" # Write text
+      self.drlabel3.Location = Point(125, self.drbutton2.Bottom + 5) # Set location X, Y
+      self.drlabel3.Width = 250 # Button width
+      self.drlabel3.TextAlign = ContentAlignment.MiddleCenter # Align the button up-down and left-right
+      Objects.append(self.drlabel3) # Append to objects list
+
+      self.okbutton = Button() # Create a button
+      self.okbutton.Text = "OK" # Button text
+      self.okbutton.Location = Point(WinLenght/2-self.okbutton.Width-5, WinHeight-self.okbutton.Height-5)
+      self.okbutton.Click += self.getvars # Run function on click. Needs to be +=, not =
+      Objects.append(self.okbutton)
+
+      self.cancelbutton = Button()
+      self.cancelbutton.Text = "Cancel"
+      self.cancelbutton.Location = Point(self.okbutton.Right + 10, self.okbutton.Top)
+      self.cancelbutton.Click += self.cancel
+      Objects.append(self.cancelbutton)
+      
+      # Actually display all the objects we created
+      self.Controls.AddRange(Array[Control](Objects)) 
+
+      # If you press cancel, we set the error flag to True and update the message
+    def cancel(self, sender, args):
+      global error, message
+      message = "Workflow cancelled!"
+      error = True
+      self.Close()
+
+    def getvars(self, sender, args):
+      global paths, error, folderName, pathlist, message
+      
+      if selected:
+
+        for i in [folderName + "\\" + x for x in listdir(folderName)]:
+          if i.endswith(self.extext.Text):
+            pathlist.append(i)
+        print(pathlist)
+        if pathlist:
+          paths = Array[String](pathlist)
+          error = False
+          self.Close()
+        else:
+          message = "No files with that extension in that path!"
+          self.Close()
+      else:
+          message = "No path selected!"
+          self.Close()
+
+    def getdir(self, sender, args):
+      global paths, folderName, selected
+      
+      result = self.directory.ShowDialog()
+      if result == DialogResult.OK:
+        folderName = self.directory.SelectedPath
+        self.drlabel.Text = folderName
+        selected = True
+
+    def getdir2(self, sender, args):
+      global savefolder
+      
+      result = self.directory2.ShowDialog()
+      if result == DialogResult.OK:
+        savefolder = self.directory2.SelectedPath
+        self.drlabel3.Text = savefolder
+
+  def dirapp():
+    form = getFolder()
+    Application.EnableVisualStyles()
+    Application.Run(form)
+    form.Dispose()
+
+  thread = Thread(ThreadStart(dirapp))
+  thread.SetApartmentState(ApartmentState.STA)
+  thread.Start()
+  thread.Join()
+  # this is just to create the popup
+
+
+  # If error flag true, actually raise an error so the whole workflow stops
+  # This needs to be outside of the forms function, or else it will not work properly with Bonsai
+  if error:
+    raise NameError(message)
+  
+  yield Tuple.Create(paths,savefolder)</ipy:Script>
+      </Expression>
+      <Expression xsi:type="MemberSelector">
+        <Selector>Item1</Selector>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:Concat" />
+      </Expression>
+      <Expression xsi:type="rx:SelectMany">
+        <Workflow>
+          <Nodes>
+            <Expression xsi:type="WorkflowInput">
+              <Name>Source1</Name>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:RepeatCount">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="WorkflowOutput" />
+          </Nodes>
+          <Edges>
+            <Edge From="0" To="1" Label="Source1" />
+            <Edge From="1" To="2" Label="Source1" />
+          </Edges>
+        </Workflow>
+      </Expression>
+      <Expression xsi:type="rx:CreateObservable">
+        <Workflow>
+          <Nodes>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>FileName</Name>
+            </Expression>
+            <Expression xsi:type="PropertyMapping">
+              <PropertyMappings>
+                <Property Name="FileName" />
+              </PropertyMappings>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:FileCapture">
+                <cv:FileName>C:\Users\pedro\Desktop\Test\Analysing\Trial 2.avi</cv:FileName>
+                <cv:PlaybackRate>100000</cv:PlaybackRate>
+                <cv:StartPosition>0</cv:StartPosition>
+                <cv:PositionUnits>Frames</cv:PositionUnits>
+                <cv:Loop>false</cv:Loop>
+                <cv:Playing>true</cv:Playing>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Annotation">
+              <Name>HERE TO ADJUST CROP</Name>
+              <Text><![CDATA[You need to use the "RegionOfInterest" node to adjust the crop ROI, not the Crop node itself. To adjust, while the workflow is running, click the "RegionOfInterest" node, then on the right side of the screen click on "Value" and then the three dots next to it. You can then draw a square. To eliminate the current square, just click outside of it, or right click inside of it. It is then kept for the remainder of the videos, and is saved for the next time you use this workflow.]]></Text>
+            </Expression>
+            <Expression xsi:type="GroupWorkflow">
+              <Name>Reset ROI</Name>
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="SubscribeSubject">
+                    <Name>Settings</Name>
+                  </Expression>
+                  <Expression xsi:type="rx:TakeWhile">
+                    <Workflow>
+                      <Nodes>
+                        <Expression xsi:type="WorkflowInput">
+                          <Name>Source1</Name>
+                        </Expression>
+                        <Expression xsi:type="ipy:PythonTransform">
+                          <ipy:Name>Reset</ipy:Name>
+                          <ipy:Script>
+reset = True
+
+@returns(bool)
+def process(value):
+  global reset
+  
+  if reset and value[10]:
+
+    reset = False
+    return True
+  else:
+    return False</ipy:Script>
+                        </Expression>
+                        <Expression xsi:type="WorkflowOutput" />
+                      </Nodes>
+                      <Edges>
+                        <Edge From="0" To="1" Label="Source1" />
+                        <Edge From="1" To="2" Label="Source1" />
+                      </Edges>
+                    </Workflow>
+                  </Expression>
+                  <Expression xsi:type="SubscribeSubject">
+                    <Name>Settings</Name>
+                  </Expression>
+                  <Expression xsi:type="ipy:PythonTransform">
+                    <ipy:Name>Empty ROI</ipy:Name>
+                    <ipy:Script>import clr
+clr.AddReference('System')
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
+clr.AddReference("OpenCV.Net")
+from OpenCV.Net import *
+
+
+@returns(Rect)
+def process(value):
+
+    return Rect()</ipy:Script>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:WithLatestFrom" />
+                  </Expression>
+                  <Expression xsi:type="MemberSelector">
+                    <Selector>Item2</Selector>
+                  </Expression>
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="1" To="4" Label="Source1" />
+                  <Edge From="2" To="3" Label="Source1" />
+                  <Edge From="3" To="4" Label="Source2" />
+                  <Edge From="4" To="5" Label="Source1" />
+                  <Edge From="5" To="6" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="PropertyMapping">
+              <PropertyMappings>
+                <Property Name="Value" />
+              </PropertyMappings>
+            </Expression>
+            <Expression xsi:type="PropertySource" TypeArguments="cv:Crop,p1:Rect">
+              <MemberName>RegionOfInterest</MemberName>
+              <Value>
+                <X>24</X>
+                <Y>34</Y>
+                <Width>163</Width>
+                <Height>160</Height>
+              </Value>
+            </Expression>
+            <Expression xsi:type="PropertyMapping">
+              <PropertyMappings>
+                <Property Name="RegionOfInterest" />
+              </PropertyMappings>
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>Settings</ipy:Name>
+              <ipy:Script># This script was created and is used by Neuronal Circuits and Behavior Lab, Center for Neuroscience and Cell Biology, University of Coimbra
+# Created by Pedro Ferreira, PhD
+# For any doubts, e-mail me at ferreira.pedro.ac@gmail.com
+
+# Import required clr packages
+# Popup settings window will be using the .NET package System.Windows.Forms
+# Visit the following website for documentation - https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms?view=windowsdesktop-8.0
+# Documentation is written for .NET, you need to adapt to python through clr
+# If searching google to alter this, try something like "Ironpython forms xxxxxxxx"
+
+import clr
+clr.AddReference('System')
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
+clr.AddReference("OpenCV.Net")
+from OpenCV.Net import *
+
+# Import Python modules
+
+from os import path, getcwd
+from System import Array
+from System.Windows.Forms import *
+from System.Drawing import *
+import pickle
+
+# If you change the default settings here, you need to delete the settings file in the bonsai workflow directory
+# This are the defaults if not previously defined by user
+Framerate = "30.0" # FPS
+TimebinLenght = ["10","00"] # Min
+Ratio = "0.17"     # Conversion ratio pixel to centimeter
+ErrThreshold = "12" # Maximum pixels to move in five frames
+MovementThreshold = "2" # Minimum pixels to move on average in five frames
+TBins = True # Enable Timebins
+
+SubMethod = "Subtract" # Method for background subtraction. "Subtract" or "HSV"
+doSkip = True # Enable skip initial frames
+NuSkip = "10" # How many seconds to skip
+
+Crop = [0,0,50,50]
+ResetCrop = False
+doROI = False
+cprop = "50"
+
+# List with defaults
+defs = [Framerate,Ratio,ErrThreshold,MovementThreshold,TBins,TimebinLenght,SubMethod,doSkip,NuSkip,Crop,ResetCrop,doROI,cprop]
+
+# Check if settings file exists, create if not. Using Python pickles for this
+if not path.isfile("Motor Quantification Settings"):
+
+  with open("Motor Quantification Settings", "wb") as fp:   #Pickling
+     pickle.dump(defs, fp)
+ 
+# Load settings from file
+with open("Motor Quantification Settings", "rb") as fp:   # Unpickling
+  settings = pickle.load(fp)
+
+# Set some global variables. These are changed even across multiple videos
+
+start = True # To only run script once
+error = True # Throw an error if something goes wrong
+save = True # To save settings
+
+@returns(list)
+def process(value):
+
+  # Call global variables
+  global start, error, settings, save
+  global Framerate,Ratio,ErrThreshold,MovementThreshold,TBins,TimebinLenght,SubMethod,doSkip,NuSkip,ResetCrop,doROI,cprop
+
+  # Standard error message
+  message = "Something went wrong, try again!"
+
+  # This if clause needs to be here or the script is run when you close this window for some reason
+  if value:
+
+    # To only do this once, it is changed to False later
+    if start == True:
+
+      # Define our popup window
+      
+      class getsettings(Form):
+
+          def __init__(self):
+    
+              # Main settings
+              self.Text = 'Input settings here' # Window title
+              self.MinimizeBox = False; # Remove maximize button
+              self.MaximizeBox = False; # Remove minimize button
+              # Set window height and lenght
+              WinHeight = 300 
+              WinLenght = 300
+              self.ClientSize = Size(WinLenght, WinHeight)
+              # Set window style
+              self.FormBorderStyle = FormBorderStyle.Fixed3D
+              self.StartPosition = FormStartPosition.CenterScreen
+
+              # Create list for all objects
+              Objects = []
+
+              # I'll comment one, others are repetition
+
+              self.frlabel = Label() # Create label
+              self.frlabel.Text = "Framerate" # Write text
+              self.frlabel.Location = Point(0, 0) # Set location X, Y
+              self.frlabel.Width = 150 # Button width
+              self.frlabel.TextAlign = ContentAlignment.MiddleRight # Align the button up-down and left-right
+              Objects.append(self.frlabel) # Append to objects list
+
+              self.framerate = TextBox() # Create textbox where user can write
+              self.framerate.Text = settings[0] # Get default value from settings
+              self.framerate.Location = Point(150, 0)
+              self.framerate.Width = 50
+              Objects.append(self.framerate)
+
+              self.frlabel2 = Label()
+              self.frlabel2.Text = "fps"
+              self.frlabel2.Location = Point(self.framerate.Right, 0)
+              self.frlabel2.Width = 50
+              self.frlabel2.TextAlign = ContentAlignment.MiddleLeft
+              Objects.append(self.frlabel2)
+
+              self.rtlabel = Label()
+              self.rtlabel.Text = "Conversion Ratio"
+              self.rtlabel.Location = Point(0, self.framerate.Bottom + 5)
+              self.rtlabel.Width = 150
+              self.rtlabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.rtlabel)
+
+              self.ratio = TextBox()
+              self.ratio.Text = settings[1]
+              self.ratio.Location = Point(150, self.framerate.Bottom + 5)
+              self.ratio.Width = 50
+              Objects.append(self.ratio)
+
+              self.rtlabel2 = Label()
+              self.rtlabel2.Text = "Pixel to cm"
+              self.rtlabel2.Location = Point(self.ratio.Right, self.framerate.Bottom + 5)
+              self.rtlabel2.Width = 140
+              self.rtlabel2.TextAlign = ContentAlignment.MiddleLeft
+              Objects.append(self.rtlabel2)
+
+              self.etlabel = Label()
+              self.etlabel.Text = "Error Threshold"
+              self.etlabel.Location = Point(0, self.ratio.Bottom + 5)
+              self.etlabel.Width = 150
+              self.etlabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.etlabel)
+
+              self.errorthreshold = TextBox()
+              self.errorthreshold.Text = settings[2]
+              self.errorthreshold.Location = Point(150, self.ratio.Bottom + 5)
+              self.errorthreshold.Width = 50
+              Objects.append(self.errorthreshold)
+
+              self.etlabel2 = Label()
+              self.etlabel2.Text = "Pixels/5 frames"
+              self.etlabel2.Location = Point(self.errorthreshold.Right, self.ratio.Bottom + 5)
+              self.etlabel2.Width = 140
+              self.etlabel2.TextAlign = ContentAlignment.MiddleLeft
+              Objects.append(self.etlabel2)
+
+              self.mtlabel = Label()
+              self.mtlabel.Text = "Movement Threshold"
+              self.mtlabel.Location = Point(0, self.errorthreshold.Bottom + 5)
+              self.mtlabel.Width = 150
+              self.mtlabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.mtlabel)
+
+              self.movthreshold = TextBox()
+              self.movthreshold.Text = settings[3]
+              self.movthreshold.Location = Point(150, self.errorthreshold.Bottom + 5)
+              self.movthreshold.Width = 50
+              Objects.append(self.movthreshold)
+
+              self.mtlabel2 = Label()
+              self.mtlabel2.Text = "Pixels/5 frames"
+              self.mtlabel2.Location = Point(self.movthreshold.Right, self.errorthreshold.Bottom + 5)
+              self.mtlabel2.Width = 140
+              self.mtlabel2.TextAlign = ContentAlignment.MiddleLeft
+              Objects.append(self.mtlabel2)
+
+              self.cklabel = Label()
+              self.cklabel.Text = "Do you want timebins?"
+              self.cklabel.Width = 150
+              self.cklabel.Location = Point(WinLenght/2-self.cklabel.Width/2-10, self.movthreshold.Bottom + 10)
+              self.cklabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.cklabel)
+
+              self.dobins = CheckBox() # Create checkbox. Check = True; Uncheck = False
+              self.dobins.Location = Point(self.cklabel.Right, self.movthreshold.Bottom + 10)
+              self.dobins.Checked = settings[4]
+              self.dobins.CheckedChanged += self.binstoggle # Run function on click. Needs to be +=, not =
+              Objects.append(self.dobins)
+
+              self.tblabel = Label()
+              self.tblabel.Text = "Timebin Length"
+              self.tblabel.Location = Point(0, self.dobins.Bottom + 5)
+              self.tblabel.Width = 150
+              self.tblabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.tblabel)
+
+              self.timebins = TextBox()
+              self.timebins.Text = settings[5][0]
+              self.timebins.Location = Point(150, self.dobins.Bottom + 5)
+              self.timebins.Width = 30
+              Objects.append(self.timebins)
+
+              self.tblabel2 = Label()
+              self.tblabel2.Text = "min"
+              self.tblabel2.Location = Point(self.timebins.Right, self.dobins.Bottom + 5)
+              self.tblabel2.Width = 30
+              self.tblabel2.TextAlign = ContentAlignment.MiddleLeft
+              Objects.append(self.tblabel2)
+
+              self.timebins2 = TextBox()
+              self.timebins2.Text = settings[5][1]
+              self.timebins2.Location = Point(self.tblabel2.Right, self.dobins.Bottom + 5)
+              self.timebins2.Width = 30
+              Objects.append(self.timebins2)
+
+              self.tblabel3 = Label()
+              self.tblabel3.Text = "sec"
+              self.tblabel3.Location = Point(self.timebins2.Right, self.dobins.Bottom + 5)
+              self.tblabel3.Width = 30
+              self.tblabel3.TextAlign = ContentAlignment.MiddleLeft
+              Objects.append(self.tblabel3)
+
+              self.okbutton = Button() # Create a button
+              self.okbutton.Text = "OK" # Button text
+              self.okbutton.Location = Point(WinLenght/2-self.okbutton.Width-5, WinHeight-self.okbutton.Height-5)
+              self.okbutton.Click += self.getvars # Run function on click. Needs to be +=, not =
+              Objects.append(self.okbutton)
+
+              self.cancelbutton = Button()
+              self.cancelbutton.Text = "Cancel"
+              self.cancelbutton.Location = Point(self.okbutton.Right + 10, self.okbutton.Top)
+              self.cancelbutton.Click += self.cancel
+              Objects.append(self.cancelbutton)
+
+              self.defbutton = Button()
+              self.defbutton.Text = "Set to defaults"
+              self.defbutton.Width = 100
+              self.defbutton.Location = Point(WinLenght/2-self.defbutton.Width/2-35, self.okbutton.Top - self.defbutton.Height -5)
+              self.defbutton.Click += self.setdefs
+              Objects.append(self.defbutton)
+
+              self.helpbutton = Button()
+              self.helpbutton.Text = "Help"
+              self.helpbutton.Width = 60
+              self.helpbutton.Location = Point(self.defbutton.Right + 10, self.defbutton.Top)
+              self.helpbutton.Click += self.helptext
+              Objects.append(self.helpbutton)
+
+              self.stlabel = Label()
+              self.stlabel.Text = "Save settings?"
+              self.stlabel.Width = 100
+              self.stlabel.Location = Point(WinLenght/2-self.stlabel.Width/2-10, self.defbutton.Top - self.stlabel.Height - 10)
+              self.stlabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.stlabel)
+
+              self.save = CheckBox()
+              self.save.Location = Point(self.stlabel.Right, self.stlabel.Top)
+              self.save.Checked = True
+              Objects.append(self.save)
+
+              # Actually display all the objects we created
+              self.Controls.AddRange(Array[Control](Objects)) 
+              self.binstoggle(self,"")
+
+          # Function to set defaults. Will use values written in the beginning of the script
+          def setdefs(self, sender, args):
+
+              self.framerate.Text = Framerate
+              self.timebins.Text = TimebinLenght[0]
+              self.timebins2.Text = TimebinLenght[1]
+              self.ratio.Text = Ratio
+              self.errorthreshold.Text = ErrThreshold
+              self.movthreshold.Text = MovementThreshold
+              self.dobins.Checked = TBins
+          
+          # Function to hide or display the Timebin Length textbox depending on the DoBins checkbox
+          def binstoggle(self, sender, args):
+              if self.dobins.Checked == True:
+                self.tblabel.Visible = True # We just make it visible or invisible depending on the checkbox state
+                self.tblabel2.Visible = True
+                self.timebins.Visible = True
+                self.tblabel3.Visible = True
+                self.timebins2.Visible = True
+
+              else:
+                self.tblabel.Visible = False
+                self.tblabel2.Visible = False
+                self.timebins.Visible = False
+                self.tblabel3.Visible = False
+                self.timebins2.Visible = False
+
+          # Long form string, use """ instead of " for easier readibility, need to add \ at the end of each line
+          def helptext(self, sender, args):
+          
+              MessageBox.Show("""\
+\
+Settings Help:   \n \
+1) Framerate - Number of frames per second the video is recorded in; \n \
+2) Timebin Lenght - If you set it to e.g. 10, this will give you data every 10 min;\n \
+3) Ratio - How many pixels are in a centimeter. You will need to measure this beforehand, \
+varies depending of the distance of the camera to the arena;\n \
+4) Error Threshold - How many pixels the animal needs to move, in five frames, for it to\
+be considered an error and the value is set to 0. E.g camera suddenly catches\
+something on the other side of the arena;\n\
+5) Movement Threshold - Minimum number of pixels for an animal to move within five frames\
+for it to be considered movement, and not noise.\
+\n\nSet defaults will reset to the values set in the script itself.\
+\n\nSettings are saved to a settings file (Python pickle) in the same directory as this workflow\
+\n\nIf you want to change 4) or 5), open the Euclidean distance node, study the values while\
+the animal is moving, and adapt accordingly. You shouldn't need to touch this though.\
+\n\nTo measure the Ratio, measure one side of the arena, at the bottom where the animal walks, \
+then see how many pixels that side has on the video, and then divide pixel size by actual size\
+and put in Ratio.\
+\n\nFor additional help, reach out at ferreira.pedro.ac@gmail.com
+\
+""")
+
+          # Get variables to propagate when okay is pressed
+          def getvars(self, sender, args):
+              global settings # get the global settings variable inside this function
+              err = 0 # Create variable for errors
+              errlist = [] # List of errors
+              
+              # Use try - except to catch user input error
+              try:
+                # Get value from textbox , which is a string, convert to float, replace comma with dot, round, then format as string
+                # Due to the way floats are stored, '%.2f' is required to avoid weird floating point math
+                # Very interesting read on this https://0.30000000000000004.com/
+                settings[0] = '%.2f' % round(float(self.framerate.Text.replace(",",".")),2) # Set new settings value
+                self.framerate.ForeColor = Color.Black # Change text color to black in case there was an error before
+
+              # If user inputs something other than a number
+              except:
+                
+                errlist.append("Framerate must be a number!")
+                self.framerate.ForeColor = Color.Red # Change text color to red
+                err = 1 # Set flag indicating there was an error
+
+              # Basically the same on the next ones 
+
+              try:
+                settings[1] = '%.3f' %  round(float(self.ratio.Text.replace(",",".")),3)
+                self.ratio.ForeColor = Color.Black
+              except:
+                errlist.append("Ratio must be a number!")
+                self.ratio.ForeColor = Color.Red
+                err = 1
+
+              try:
+                settings[2] = '%.2f' % round(float(self.errorthreshold.Text.replace(",",".")),2)
+                self.errorthreshold.ForeColor = Color.Black
+              except:
+                errlist.append("Error threshold must be a number!")
+                self.errorthreshold.ForeColor = Color.Red
+                err = 1
+
+              try:
+                settings[3] = '%.2f' % round(float(self.movthreshold.Text.replace(",",".")),2)
+                self.movthreshold.ForeColor = Color.Black
+              except:
+                errlist.append("Movement threshold must be a number!")
+                self.movthreshold.ForeColor = Color.Red
+                err = 1
+
+              # No way for errors here, just set settings
+              settings[4] = self.dobins.Checked 
+
+              try:
+                int(self.timebins.Text) # Check if whole number
+                settings[5][0] = self.timebins.Text
+                self.timebins.ForeColor = Color.Black
+              except:
+                errlist.append("Timebin lenght must be a whole number!")
+                self.timebins.ForeColor = Color.Red
+                err = 1
+
+              try:
+                int(self.timebins2.Text) # Check if whole number
+                settings[5][1] = self.timebins2.Text
+                self.timebins2.ForeColor = Color.Black
+              except:
+                errlist.append("Timebin lenght must be a whole number!")
+                self.timebins2.ForeColor = Color.Red
+                err = 1
+
+              # If there were no errors
+              if err == 0:
+                global error,save # Call globals 
+                error = False # Set error flag to zero, meaning all went well
+                save = self.save.Checked # Set save flag to the save checkbox
+                self.Close() # Close the window
+          
+              # If there were errors, print all of them, and don't close the settings popup
+              else:
+                MessageBox.Show('\n'.join(errlist))
+
+          # If you press cancel, we set the error flag to True and update the message
+          def cancel(self, sender, args):
+              global error, message
+              message = "Workflow cancelled!"
+              error = True
+              self.Close()
+      
+      # this is just to create the popup
+      form = getsettings()
+      Application.EnableVisualStyles()
+      Application.Run(form)
+
+      # If error flag true, actually raise an error so the whole workflow stops
+      # This needs to be outside of the forms function, or else it will not work properly with Bonsai
+      if error:
+        raise NameError(message)
+
+      # If save flag is set, overwrite settings pickle
+      if save:
+        with open("Motor Quantification Settings", "wb") as fp:   #Pickling
+          pickle.dump(settings, fp)
+
+
+#############################################################
+####################    Second window    ####################
+#############################################################
+
+      class getsettings2(Form):
+
+          def __init__(self):
+    
+              # Main settings
+              self.Text = 'Input settings here' # Window title
+              self.MinimizeBox = False; # Remove maximize button
+              self.MaximizeBox = False; # Remove minimize button
+              # Set window height and lenght
+              WinHeight = 300 
+              WinLenght = 300
+              self.ClientSize = Size(WinHeight, WinLenght)
+              # Set window style
+              self.FormBorderStyle = FormBorderStyle.Fixed3D
+              self.StartPosition = FormStartPosition.CenterScreen
+
+              # Create list for all objects
+              Objects = []
+
+              self.mtlabel = Label() # Create label
+              self.mtlabel.Text = "Subtraction method" # Write text
+              self.mtlabel.Width = 150
+              self.mtlabel.Location = Point(25, 0) # Set location X, Y
+              self.mtlabel.TextAlign = ContentAlignment.MiddleRight # Align the button up-down and left-right
+              Objects.append(self.mtlabel) # Append to objects list
+
+              self.method = Button() # Create a button
+              self.method.Text = settings[6] # Get default value from settings
+              self.method.Location = Point(self.mtlabel.Right, 0)
+              self.method.TextAlign = ContentAlignment.MiddleCenter
+              self.method.Click += self.methodbutt # Run function on click. Needs to be +=, not =
+              Objects.append(self.method)
+
+              self.dslabel = Label()
+              self.dslabel.Text = "Skip initial frames?"
+              self.dslabel.Width = 150
+              self.dslabel.Location = Point(WinLenght/2-self.dslabel.Width/2-35, self.method.Bottom + 5)
+              self.dslabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.dslabel)
+
+              self.skip = CheckBox()
+              self.skip.Checked = settings[7]
+              self.skip.Location = Point(self.dslabel.Right, self.method.Bottom + 5)
+              self.skip.CheckedChanged += self.skiptoggle # Run function on click. Needs to be +=, not =
+              Objects.append(self.skip)
+
+              self.snlabel = Label()
+              self.snlabel.Text = "Time to skip"
+              self.snlabel.Location = Point(0, self.dslabel.Bottom + 5)
+              self.snlabel.Width = 150
+              self.snlabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.snlabel)
+
+              self.nbskip = TextBox()
+              self.nbskip.Text = settings[8]
+              self.nbskip.Location = Point(150, self.dslabel.Bottom + 5)
+              self.nbskip.Width = 50
+              Objects.append(self.nbskip)
+              
+              self.snlabel2 = Label()
+              self.snlabel2.Text = "sec"
+              self.snlabel2.Location = Point(self.nbskip.Right, self.dslabel.Bottom + 5)
+              self.snlabel2.Width = 50
+              self.snlabel2.TextAlign = ContentAlignment.MiddleLeft
+              Objects.append(self.snlabel2)
+
+              self.rclabel = Label()
+              self.rclabel.Text = "Reset crop?"
+              self.rclabel.Width = 150
+              self.rclabel.Location = Point(WinLenght/2-self.rclabel.Width/2-35, self.nbskip.Bottom + 5)
+              self.rclabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.rclabel)
+
+              self.rcrop = CheckBox()
+              self.rcrop.Checked = False
+              self.rcrop.Location = Point(self.rclabel.Right, self.nbskip.Bottom + 5)
+              Objects.append(self.rcrop)
+
+              self.roilabel = Label()
+              self.roilabel.Text = "Do ROI Analysis?"
+              self.roilabel.Width = 150
+              self.roilabel.Location = Point(WinLenght/2-self.roilabel.Width/2-25, self.rcrop.Bottom + 5)
+              self.roilabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.roilabel)
+
+              self.roicrop = CheckBox()
+              self.roicrop.Checked = settings[11]
+              self.roicrop.Location = Point(self.roilabel.Right, self.rcrop.Bottom + 5)
+              Objects.append(self.roicrop)
+
+              self.roilabel2 = Label()
+              self.roilabel2.Text = "(This is currently set up with 9 areas for the OFT\nClick help for info)"
+              self.roilabel2.Width = 300
+              self.roilabel2.Height = 35
+              self.roilabel2.Location = Point(0, self.roicrop.Bottom)
+              self.roilabel2.TextAlign = ContentAlignment.MiddleCenter
+              Objects.append(self.roilabel2)
+
+              self.prlabel = Label()
+              self.prlabel.Text = "Center proportion"
+              self.prlabel.Width = 150
+              self.prlabel.Location = Point(WinLenght/2-self.prlabel.Width/2-45, self.roilabel2.Bottom + 5)
+              self.prlabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.prlabel)
+
+              self.prop = TextBox()
+              self.prop.Text = settings[12]
+              self.prop.Location = Point(self.prlabel.Right, self.roilabel2.Bottom + 5)
+              self.prop.Width = 30
+              Objects.append(self.prop)
+              
+              self.prlabel2 = Label()
+              self.prlabel2.Text = "%"
+              self.prlabel2.Location = Point(self.prop.Right, self.roilabel2.Bottom + 5)
+              self.prlabel2.Width = 30
+              self.prlabel2.TextAlign = ContentAlignment.MiddleLeft
+              Objects.append(self.prlabel2)
+
+              self.okbutton = Button() 
+              self.okbutton.Text = "OK" 
+              self.okbutton.Location = Point(WinLenght/2-self.okbutton.Width-5, WinHeight-self.okbutton.Height-5)
+              self.okbutton.Click += self.getvars # Run function on click. Needs to be +=, not =
+              Objects.append(self.okbutton)
+
+              self.cancelbutton = Button()
+              self.cancelbutton.Text = "Cancel"
+              self.cancelbutton.Location = Point(self.okbutton.Right + 10, self.okbutton.Top)
+              self.cancelbutton.Click += self.cancel
+              Objects.append(self.cancelbutton)
+
+              self.defbutton = Button()
+              self.defbutton.Text = "Set to defaults"
+              self.defbutton.Width = 100
+              self.defbutton.Location = Point(WinLenght/2-self.defbutton.Width/2-35, self.okbutton.Top - self.defbutton.Height -5)
+              self.defbutton.Click += self.setdefs
+              Objects.append(self.defbutton)
+
+              self.helpbutton = Button()
+              self.helpbutton.Text = "Help"
+              self.helpbutton.Width = 60
+              self.helpbutton.Location = Point(self.defbutton.Right + 10, self.defbutton.Top)
+              self.helpbutton.Click += self.helptext
+              Objects.append(self.helpbutton)
+
+              self.stlabel = Label()
+              self.stlabel.Text = "Save settings?"
+              self.stlabel.Width = 100
+              self.stlabel.Location = Point(WinLenght/2-self.stlabel.Width/2-10, self.defbutton.Top - self.stlabel.Height - 10)
+              self.stlabel.TextAlign = ContentAlignment.MiddleRight
+              Objects.append(self.stlabel)
+
+              self.save = CheckBox()
+              self.save.Location = Point(self.stlabel.Right, self.stlabel.Top)
+              self.save.Checked = True
+              Objects.append(self.save)
+
+              # Actually display all the objects we created
+              self.Controls.AddRange(Array[Control](Objects)) 
+              self.skiptoggle(self,"")
+
+          # Function to hide or display the Timebin Length textbox depending on the DoBins checkbox
+          def skiptoggle(self, sender, args):
+              if self.skip.Checked == True:
+                self.snlabel.Visible = True # We just make it visible or invisible depending on the checkbox state
+                self.nbskip.Visible = True
+                self.snlabel2.Visible = True
+              else:
+                self.snlabel.Visible = False
+                self.nbskip.Visible = False
+                self.snlabel2.Visible = False
+
+          # Toggle between Subtract and HSV methods
+          def methodbutt(self, sender, args):
+              if self.method.Text == "Subtract":
+                self.method.Text = "HSV"
+              elif self.method.Text == "HSV":
+                self.method.Text = "Subtract"
+
+          # Function to set defaults. Will use values written in the beginning of the script
+          def setdefs(self, sender, args):
+
+              self.method.Text = SubMethod
+              self.skip.Checked = doSkip
+              self.nbskip.Text = NuSkip
+              self.rcrop.Checked = ResetCrop
+              self.roicrop.Checked = doROI
+              self.prop.Text = cprop
+
+          def helptext(self, sender, args):
+          
+              MessageBox.Show("""\
+Settings Help 2:\n\n\
+ - Subtraction method - The background needs to be subtracted from the video in order to identify the animal. \
+There are two methods here:\n1) "Subtract" will use the "Background subtraction" node, which works well if the \
+color of your animal is substantially different from the arena color. To adjust settings, head to the Background \
+Subtraction node, it will be annotated with instructions.\n2) "HSV" uses the "HSVThreshold" node, where you have \
+to manually specify the color of your animal with pixel color values. Head to the node to configure, it will be \
+annotated with instructions.\n\n\
+ - Skip initial frames - This will skip the initial x frames of the video, usually the time it takes to drop the \
+animal in the arena.\n\n\
+ - Time to skip - Time to skip in seconds\n\n\
+ - Reset crop - This will reset the crop ROI to the whole image, required when the previously used crop exceeds \
+the new video size or similar.\n\n\
+ - ROI Analysis - Will provide an additional sheet in the results excel that will analyse the time spent in the \
+center and the time spent outside the center. This is automatically set up for the OFT.\n\n\
+ - Center proportion - Percentage of the arena that will be considered as the center for ROI analysis. You can \
+play around with it and see the results by clicking the ROIActivity node inside ROI.\n\n\
+For additional help, reach out at ferreira.pedro.ac@gmail.com\n\n\
+ - 
+""")
+
+          # Get variables to propagate when okay is pressed
+          def getvars(self, sender, args):
+              global settings # get the global settings variable inside this function
+              err = 0 # Create variable for errors
+              errlist = [] # List of errors
+
+              # No way for errors here, just set settings
+              settings[6] = self.method.Text
+
+              settings[7] = self.skip.Checked
+
+              try:
+                int(self.nbskip.Text)
+                settings[8] = self.nbskip.Text
+                self.nbskip.ForeColor = Color.Black
+              except:
+                errlist.append("Seconds must be a whole number!")
+                self.nbskip.ForeColor = Color.Red
+                err = 1 
+              
+              settings[10] = self.rcrop.Checked
+      
+              settings[11] = self.roicrop.Checked
+
+              try:
+                float(self.prop.Text)
+                settings[12] = self.prop.Text
+                self.prop.ForeColor = Color.Black
+              except:
+                errlist.append("Percentage must be a number!")
+                self.prop.ForeColor = Color.Red
+                err = 1 
+
+              # If there were no errors
+              if err == 0:
+                global error,save # Call globals 
+                error = False # Set error flag to zero, meaning all went well
+                save = self.save.Checked # Set save flag to the save checkbox
+                self.Close() # Close the window
+          
+              # If there were errors, print all of them, and don't close the settings popup
+              else:
+                MessageBox.Show('\n'.join(errlist))
+
+          # If you press cancel, we set the error flag to True and update the message
+          def cancel(self, sender, args):
+              global error, message
+              message = "Workflow cancelled!"
+              error = True
+              self.Close()
+
+      # Set to false so it doesn't run again
+      start = False
+
+      # this is just to create the popup
+      form = getsettings2()
+      Application.EnableVisualStyles()
+      Application.Run(form)
+
+      # If error flag true, actually raise an error so the whole workflow stops
+      # This needs to be outside of the forms function, or else it will not work properly with Bonsai
+      if error:
+        raise NameError(message)
+
+      # If save flag is set, overwrite settings pickle
+      if save:
+        with open("Motor Quantification Settings", "wb") as fp:   #Pickling
+          pickle.dump(settings, fp)
+  
+      # Print settings to console just to check if needed without resetting workflow
+      print(settings)
+
+  # Pass settings to next node
+  return settings</ipy:Script>
+            </Expression>
+            <Expression xsi:type="rx:BehaviorSubject">
+              <Name>ROI</Name>
+            </Expression>
+            <Expression xsi:type="GroupWorkflow">
+              <Name>Timestamp</Name>
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:Timestamp" />
+                  </Expression>
+                  <Expression xsi:type="MemberSelector">
+                    <Selector>Timestamp</Selector>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:Take">
+                      <rx:Count>1</rx:Count>
+                    </Combinator>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:CombineLatest" />
+                  </Expression>
+                  <Expression xsi:type="Subtract" />
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="1" To="2" Label="Source1" />
+                  <Edge From="2" To="3" Label="Source1" />
+                  <Edge From="2" To="4" Label="Source1" />
+                  <Edge From="3" To="4" Label="Source2" />
+                  <Edge From="4" To="5" Label="Source1" />
+                  <Edge From="5" To="6" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="rx:ReplaySubject">
+              <Name>TimeStamp</Name>
+              <rx:BufferSize xsi:nil="true" />
+            </Expression>
+            <Expression xsi:type="rx:ReplaySubject">
+              <Name>Settings</Name>
+              <rx:BufferSize xsi:nil="true" />
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Zip" />
+            </Expression>
+            <Expression xsi:type="MemberSelector">
+              <Selector>Item1</Selector>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:Crop">
+                <cv:RegionOfInterest>
+                  <cv:X>24</cv:X>
+                  <cv:Y>34</cv:Y>
+                  <cv:Width>163</cv:Width>
+                  <cv:Height>160</cv:Height>
+                </cv:RegionOfInterest>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>Settings</Name>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Zip" />
+            </Expression>
+            <Expression xsi:type="rx:SkipWhile">
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="ipy:PythonTransform">
+                    <ipy:Name>Is Subtract?</ipy:Name>
+                    <ipy:Script>@returns(bool)
+def process(value):
+
+  if value.Item2[6] == "Subtract":
+    state = False
+  else:
+    state = True
+
+  return state</ipy:Script>
+                  </Expression>
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="1" To="2" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="GroupWorkflow">
+              <Name>ImageSelect</Name>
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="MemberSelector">
+                    <Selector>Item1</Selector>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="cv:ColorBalance">
+                      <cv:Scale>
+                        <cv:Val0>3.01</cv:Val0>
+                        <cv:Val1>0.78</cv:Val1>
+                        <cv:Val2>1.72</cv:Val2>
+                        <cv:Val3>1.26</cv:Val3>
+                      </cv:Scale>
+                    </Combinator>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="cv:Grayscale" />
+                  </Expression>
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="1" To="2" Label="Source1" />
+                  <Edge From="2" To="3" Label="Source1" />
+                  <Edge From="3" To="4" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:BackgroundSubtraction">
+                <cv:BackgroundFrames>75</cv:BackgroundFrames>
+                <cv:AdaptationRate>0</cv:AdaptationRate>
+                <cv:ThresholdValue>36</cv:ThresholdValue>
+                <cv:ThresholdType>Binary</cv:ThresholdType>
+                <cv:SubtractionMethod>Dark</cv:SubtractionMethod>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:Smooth">
+                <cv:SmoothType>Median</cv:SmoothType>
+                <cv:Size1>11</cv:Size1>
+                <cv:Size2>17</cv:Size2>
+                <cv:Sigma1>0</cv:Sigma1>
+                <cv:Sigma2>0</cv:Sigma2>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="rx:SkipWhile">
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="ipy:PythonTransform">
+                    <ipy:Name>Is HSV?</ipy:Name>
+                    <ipy:Script>@returns(bool)
+def process(value):
+
+  if value.Item2[6] == "HSV":
+    state = False
+  else:
+    state = True
+
+  return state</ipy:Script>
+                  </Expression>
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="1" To="2" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="MemberSelector">
+              <Selector>Item1</Selector>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:HsvThreshold">
+                <cv:Lower>
+                  <cv:Val0>0</cv:Val0>
+                  <cv:Val1>5</cv:Val1>
+                  <cv:Val2>5</cv:Val2>
+                  <cv:Val3>0</cv:Val3>
+                </cv:Lower>
+                <cv:Upper>
+                  <cv:Val0>45</cv:Val0>
+                  <cv:Val1>45</cv:Val1>
+                  <cv:Val2>45</cv:Val2>
+                  <cv:Val3>0</cv:Val3>
+                </cv:Upper>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="cv:Smooth">
+                <cv:SmoothType>Median</cv:SmoothType>
+                <cv:Size1>13</cv:Size1>
+                <cv:Size2>13</cv:Size2>
+                <cv:Sigma1>0</cv:Sigma1>
+                <cv:Sigma2>0</cv:Sigma2>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Amb" />
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>Settings</Name>
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>Convert to frames</ipy:Name>
+              <ipy:Script>@returns(int)
+def process(value):
+  if value[7]:
+    return int(round((int(value[8])*float(value[0])),0))
+  else:
+    return 0</ipy:Script>
+            </Expression>
+            <Expression xsi:type="PropertyMapping">
+              <PropertyMappings>
+                <Property Name="Count" />
+              </PropertyMappings>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Skip">
+                <rx:Count>300</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="GroupWorkflow">
+              <Name>BinaryRegion</Name>
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="cv:FindContours">
+                      <cv:Mode>External</cv:Mode>
+                      <cv:Method>ChainApproxSimple</cv:Method>
+                      <cv:Offset>
+                        <cv:X>0</cv:X>
+                        <cv:Y>0</cv:Y>
+                      </cv:Offset>
+                      <cv:MinArea xsi:nil="true" />
+                      <cv:MaxArea xsi:nil="true" />
+                    </Combinator>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="cv:BinaryRegionAnalysis" />
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="cv:LargestBinaryRegion" />
+                  </Expression>
+                  <Expression xsi:type="MemberSelector">
+                    <Selector>Centroid</Selector>
+                  </Expression>
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="1" To="2" Label="Source1" />
+                  <Edge From="2" To="3" Label="Source1" />
+                  <Edge From="3" To="4" Label="Source1" />
+                  <Edge From="4" To="5" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Skip">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Zip" />
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>Euclidean Distance</ipy:Name>
+              <ipy:Script>import math # Importing the necessary packages for this script
+
+@returns(float) # Here you indicate which type of data will be flowing out from this node
+
+def process(value): # This is the actual script that will be running
+
+  # Setup the variables with the values coming from previous nodes
+  CurrentFrame = value.Item1
+  PreviousFrame = value.Item2
+
+  # Calculating the distance moved by the center of the animal between two frames
+  PixelDistance = math.sqrt(((CurrentFrame.X-PreviousFrame.X)**2)+((CurrentFrame.Y-PreviousFrame.Y)**2))
+
+  # Defining the values will be pushed out of the node
+  return float(PixelDistance)</ipy:Script>
+            </Expression>
+            <Expression xsi:type="GroupWorkflow">
+              <Name>ROI</Name>
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="MemberSelector">
+                    <Selector>Height</Selector>
+                  </Expression>
+                  <Expression xsi:type="MemberSelector">
+                    <Selector>Width</Selector>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:Zip" />
+                  </Expression>
+                  <Expression xsi:type="rx:SelectMany">
+                    <Workflow>
+                      <Nodes>
+                        <Expression xsi:type="WorkflowInput">
+                          <Name>Source1</Name>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>Settings</Name>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:Zip" />
+                        </Expression>
+                        <Expression xsi:type="ipy:PythonTransform">
+                          <ipy:Name>ROI Coordinates</ipy:Name>
+                          <ipy:Script>import clr
+clr.AddReference('System')
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
+clr.AddReference("OpenCV.Net")
+from OpenCV.Net import Point
+from System import Tuple
+
+
+# Import Python modules
+
+from os import path, getcwd
+
+
+@returns(Tuple[Tuple[Tuple[Point,Point,Point,Point],Tuple[Point,Point,Point,Point],Tuple[Point,Point,Point,Point],Tuple[Point,Point,Point,Point],Tuple[Point,Point,Point,Point]],Tuple[Tuple[Point,Point,Point,Point],Tuple[Point,Point,Point,Point],Tuple[Point,Point,Point,Point],Tuple[Point,Point,Point,Point]]])
+def process(value):
+  h = value.Item1.Item1
+  w = value.Item1.Item2
+  
+  prop = float(1-float(value.Item2[12])/100)/2
+
+
+  center = Tuple.Create(Point(w*prop,h*prop),Point(w*(1-prop),h*prop),Point(w*(1-prop),h*(1-prop)),Point(w*prop,h*(1-prop)))
+  topleft = Tuple.Create(Point(0,0),Point(w*prop,0),Point(w*prop,h*prop),Point(0,h*prop))
+  topright = Tuple.Create(Point(w*(1-prop),0),Point(w-1,0),Point(w-1,h*prop),Point(w*(1-prop),h*prop))
+  bottomleft = Tuple.Create(Point(0,h*(1-prop)),Point(w*prop,h*(1-prop)),Point(w*prop,h-1),Point(0,h-1))
+  bottomright = Tuple.Create(Point(w*(1-prop),h*(1-prop)),Point(w-1,h*(1-prop)),Point(w-1,h-1),Point(w*(1-prop),h-1))
+  centertop = Tuple.Create(Point(w*prop,0),Point(w*(1-prop),0),Point(w*(1-prop),h*prop),Point(w*prop,h*prop))
+  centerleft = Tuple.Create(Point(0,h*prop),Point(w*prop,h*prop),Point(w*prop,h*(1-prop)),Point(0,h*(1-prop)))
+  centerright = Tuple.Create(Point(w*(1-prop),h*prop),Point(w-1,h*prop),Point(w-1,h*(1-prop)),Point(w*(1-prop),h*(1-prop)))
+  centerbottom = Tuple.Create(Point(w*prop,h*(1-prop)),Point(w*(1-prop),h*(1-prop)),Point(w*(1-prop),h-1),Point(w*prop,h-1))
+
+  return Tuple.Create(Tuple.Create(center,topleft,topright,bottomleft,bottomright), Tuple.Create(centertop,centerleft,centerright,centerbottom))</ipy:Script>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item5</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="rx:SelectMany">
+                          <Workflow>
+                            <Nodes>
+                              <Expression xsi:type="WorkflowInput">
+                                <Name>Source1</Name>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item1</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item2</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item3</Selector>
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Item4</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Merge" />
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:ToArray" />
+                              </Expression>
+                              <Expression xsi:type="WorkflowOutput" />
+                            </Nodes>
+                            <Edges>
+                              <Edge From="0" To="1" Label="Source1" />
+                              <Edge From="1" To="2" Label="Source1" />
+                              <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="2" To="4" Label="Source1" />
+                              <Edge From="2" To="5" Label="Source1" />
+                              <Edge From="2" To="6" Label="Source1" />
+                              <Edge From="3" To="7" Label="Source1" />
+                              <Edge From="4" To="7" Label="Source2" />
+                              <Edge From="5" To="7" Label="Source3" />
+                              <Edge From="6" To="7" Label="Source4" />
+                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="8" To="9" Label="Source1" />
+                            </Edges>
+                          </Workflow>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:Merge" />
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:ToArray" />
+                        </Expression>
+                        <Expression xsi:type="WorkflowOutput" />
+                      </Nodes>
+                      <Edges>
+                        <Edge From="0" To="2" Label="Source1" />
+                        <Edge From="1" To="2" Label="Source2" />
+                        <Edge From="2" To="3" Label="Source1" />
+                        <Edge From="3" To="4" Label="Source1" />
+                        <Edge From="3" To="5" Label="Source1" />
+                        <Edge From="3" To="6" Label="Source1" />
+                        <Edge From="3" To="7" Label="Source1" />
+                        <Edge From="3" To="8" Label="Source1" />
+                        <Edge From="3" To="9" Label="Source1" />
+                        <Edge From="3" To="10" Label="Source1" />
+                        <Edge From="3" To="11" Label="Source1" />
+                        <Edge From="3" To="12" Label="Source1" />
+                        <Edge From="4" To="13" Label="Source1" />
+                        <Edge From="5" To="13" Label="Source2" />
+                        <Edge From="6" To="13" Label="Source3" />
+                        <Edge From="7" To="13" Label="Source4" />
+                        <Edge From="8" To="13" Label="Source5" />
+                        <Edge From="9" To="13" Label="Source6" />
+                        <Edge From="10" To="13" Label="Source7" />
+                        <Edge From="11" To="13" Label="Source8" />
+                        <Edge From="12" To="13" Label="Source9" />
+                        <Edge From="13" To="14" Label="Source1" />
+                        <Edge From="14" To="15" Label="Source1" />
+                      </Edges>
+                    </Workflow>
+                  </Expression>
+                  <Expression xsi:type="PropertyMapping">
+                    <PropertyMappings>
+                      <Property Name="Regions" />
+                    </PropertyMappings>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="cv:RoiActivity">
+                      <cv:Regions>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>0</cv:X>
+                            <cv:Y>0</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>0</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>0</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>0</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>162</cv:X>
+                            <cv:Y>0</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>162</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>0</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>159</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>0</cv:X>
+                            <cv:Y>159</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>162</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>162</cv:X>
+                            <cv:Y>159</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>159</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>0</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>0</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>0</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>0</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>162</cv:X>
+                            <cv:Y>40</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>162</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                        <cv:ArrayOfPoint>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>120</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>122</cv:X>
+                            <cv:Y>159</cv:Y>
+                          </cv:Point>
+                          <cv:Point>
+                            <cv:X>40</cv:X>
+                            <cv:Y>159</cv:Y>
+                          </cv:Point>
+                        </cv:ArrayOfPoint>
+                      </cv:Regions>
+                      <cv:Operation>Sum</cv:Operation>
+                    </Combinator>
+                  </Expression>
+                  <Expression xsi:type="GroupWorkflow">
+                    <Name>Index</Name>
+                    <Workflow>
+                      <Nodes>
+                        <Expression xsi:type="WorkflowInput">
+                          <Name>Source1</Name>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>0</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>1</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>2</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>3</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>4</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>5</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>6</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>7</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Index">
+                          <Operand xsi:type="IntProperty">
+                            <Value>8</Value>
+                          </Operand>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:Zip" />
+                        </Expression>
+                        <Expression xsi:type="WorkflowOutput" />
+                      </Nodes>
+                      <Edges>
+                        <Edge From="0" To="1" Label="Source1" />
+                        <Edge From="0" To="2" Label="Source1" />
+                        <Edge From="0" To="3" Label="Source1" />
+                        <Edge From="0" To="4" Label="Source1" />
+                        <Edge From="0" To="5" Label="Source1" />
+                        <Edge From="0" To="6" Label="Source1" />
+                        <Edge From="0" To="7" Label="Source1" />
+                        <Edge From="0" To="8" Label="Source1" />
+                        <Edge From="0" To="9" Label="Source1" />
+                        <Edge From="1" To="10" Label="Source1" />
+                        <Edge From="2" To="10" Label="Source2" />
+                        <Edge From="3" To="10" Label="Source3" />
+                        <Edge From="4" To="10" Label="Source4" />
+                        <Edge From="5" To="10" Label="Source5" />
+                        <Edge From="6" To="10" Label="Source6" />
+                        <Edge From="7" To="10" Label="Source7" />
+                        <Edge From="8" To="10" Label="Source8" />
+                        <Edge From="9" To="10" Label="Source9" />
+                        <Edge From="10" To="11" Label="Source1" />
+                      </Edges>
+                    </Workflow>
+                  </Expression>
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="0" To="2" Label="Source1" />
+                  <Edge From="0" To="6" Label="Source2" />
+                  <Edge From="1" To="3" Label="Source1" />
+                  <Edge From="2" To="3" Label="Source2" />
+                  <Edge From="3" To="4" Label="Source1" />
+                  <Edge From="4" To="5" Label="Source1" />
+                  <Edge From="5" To="6" Label="Source1" />
+                  <Edge From="6" To="7" Label="Source1" />
+                  <Edge From="7" To="8" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>Settings</Name>
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>TimeStamp</Name>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Zip" />
+            </Expression>
+            <Expression xsi:type="GroupWorkflow">
+              <Name>Measurements</Name>
+              <Workflow>
+                <Nodes>
+                  <Expression xsi:type="WorkflowInput">
+                    <Name>Source1</Name>
+                  </Expression>
+                  <Expression xsi:type="ipy:PythonTransform">
+                    <ipy:Name>Distance Travelled</ipy:Name>
+                    <ipy:Script>from System import Tuple
+
+# This node calculates distance travelled by the animal taking into account a threshold for actual movement 
+# calculated every 5 frames, in order to exclude grooming and similar noise from movement calculations
+
+################
+
+# Global variables
+
+Distance = 0
+TBDistance = 0
+Accumulated = 0
+Frame = 0
+Counter = 0
+
+################
+
+@returns(Tuple[float,float])
+def process(value):
+  
+  global Distance, TBDistance, Accumulated, Frame, Counter
+
+# Set relevant settings
+
+  VideoFR = float(value.Item3[0])
+  Ratio = float(value.Item3[1])
+  Error = float(value.Item3[2])
+  Threshold = float(value.Item3[3])
+  TBins = value.Item3[4]
+  Min = int(value.Item3[5][0])*60 + int(value.Item3[5][1])
+
+  Time = value.Item4.TotalMilliseconds
+  Current = value.Item1 # Value of pixels moved in the last frame
+
+  TBinFR = Min * VideoFR #Number of frames per timebin
+
+# Check to see if new video has begun, reset all values
+
+  if Time == 0:
+    Distance = 0
+    TBDistance = 0
+    Accumulated = 0
+    Frame = 0
+    Counter = 0
+
+  Frame += 1 # Count elapsed frames
+  Counter += 1
+
+# Time bin calculation
+
+  if Frame == TBinFR:
+    Frame = 0
+    TBDistance = 0
+
+# Error handling for NaN values
+
+  if not Current &gt; -1:
+    Current = 0
+  if Current &gt; Error:
+    Current = 0
+
+# Accumulate distance travelled every five frames
+
+  Accumulated += Current
+
+# Adds up euclidean distance if animal is moving
+
+  if Counter &gt;= round(VideoFR/6,0):
+    Counter = 0
+    if Accumulated &gt; Threshold:
+      Distance += Accumulated
+      TBDistance += Accumulated
+      Accumulated = 0
+    else:
+      Accumulated = 0
+
+# Result
+
+  return Tuple.Create(Distance*Ratio/100, TBDistance*Ratio/100)</ipy:Script>
+                  </Expression>
+                  <Expression xsi:type="ipy:PythonTransform">
+                    <ipy:Name>Average Instant Speed</ipy:Name>
+                    <ipy:Script>from System import Tuple
+
+# This node calculates average instant speed using a movement threshold
+
+################
+
+Distance = 0
+Speed = 0
+TBSpeed = 0
+Accumulated = 0
+Frame = 0
+SpeedCounter = 0
+TBSpeedCounter = 0
+TotalCounter = 0
+TBTotalCounter = 0
+Counter = 0
+
+################
+
+@returns(Tuple[float,float])
+def process(value):
+  
+  global Distance, Speed, TBSpeed, SpeedCounter, Accumulated, Frame, Counter, TotalCounter, SpeedAcc, TBSpeedAcc, TBTotalCounter, Counter
+
+  VideoFR = float(value.Item3[0])
+  Ratio = float(value.Item3[1])
+  Error = float(value.Item3[2])
+  Threshold = float(value.Item3[3])
+  TBins = value.Item3[4]
+  Min = int(value.Item3[5][0])*60 + int(value.Item3[5][1])
+
+  Time = value.Item4.TotalMilliseconds
+  Current = value.Item1
+
+  Accumulated += Current
+  Frame += 1
+  Counter += 1
+
+  TBinFR = Min * VideoFR
+
+# Error handling
+
+  if not Current &gt; -1:
+    Current = 0
+  if Current &gt; Error:
+    Current = 0
+
+# Check to see if new video has begun, reset all values
+
+  if Time == 0:
+    Distance = 0
+    Speed = 0
+    TBSpeed = 0
+    Accumulated = 0
+    Frame = 0
+    SpeedCounter = 0
+    TotalCounter = 0
+    SpeedAcc = 0
+    TBSpeedAcc = 0
+    TBTotalCounter = 0
+    Counter = 0
+
+# Reset time bin values when beginning a new time bin
+
+  if float(Frame) == TBinFR:
+    
+    TBSpeedAcc = 0
+    TBTotalCounter = 0
+    TBSpeed = 0
+    Frame = 0
+
+# Adds up euclidean distance each frame and calculate speed
+
+  if Counter &gt;= round(VideoFR/6,0):
+    Counter = 0
+    if Accumulated &gt; Threshold:
+      Distance += Accumulated
+      SpeedCounter += round(VideoFR/6,0)
+      Accumulated = 0
+    else:
+      Accumulated = 0
+      if SpeedCounter &gt; VideoFR+1:
+        SpeedAcc += (Distance*Ratio)*VideoFR/SpeedCounter
+        TBSpeedAcc += (Distance*Ratio)*VideoFR/SpeedCounter
+        TotalCounter += 1
+        TBTotalCounter += 1
+      SpeedCounter = 0
+      Distance = 0
+
+    if TotalCounter &gt; 0:
+      Speed = SpeedAcc / TotalCounter
+    if TBTotalCounter &gt; 0:
+      TBSpeed = TBSpeedAcc / TBTotalCounter
+
+# Results
+
+  return Tuple.Create(float(Speed), float(TBSpeed))</ipy:Script>
+                  </Expression>
+                  <Expression xsi:type="ipy:PythonTransform">
+                    <ipy:Name>Time Spent Still</ipy:Name>
+                    <ipy:Script>from System import Tuple
+
+# This node calculates the total time the animal is not moving according to a threshold
+# calculated every 5 frames. Grooming and othwer behaviors inducing small position changes
+# are not considered as movement for this calculation.
+
+################
+
+Movement = 0
+TBMovement = 0
+
+Accumulated = 0
+Frame = 0
+Counter = 0
+
+################
+
+@returns(Tuple[float,float])
+def process(value):
+  
+  global Movement, TBMovement, Accumulated, Frame, Counter
+
+  VideoFR = float(value.Item3[0])
+  Ratio = float(value.Item3[1])
+  Error = float(value.Item3[2])
+  Threshold = float(value.Item3[3])
+  TBins = value.Item3[4]
+  Min = int(value.Item3[5][0])*60 + int(value.Item3[5][1])
+
+  Time = value.Item4.TotalMilliseconds
+  Current = value.Item1
+
+  Accumulated += Current
+  Frame += 1
+  Counter += 1
+  TBinFR = Min * VideoFR
+
+# Check to see if new video has begun, reset all values
+
+  if Time == 0:
+    Movement = 0
+    TBMovement = 0
+    PrevTBMovement = 0
+    Accumulated = 0
+    Frame = 0
+    Counter = 0
+
+# Error handling for NaN values
+
+  if not Current &gt; -1:
+    Current = 0
+  if Current &gt; Error:
+    Current = 0
+
+# Accumulate distance travelled 
+  Accumulated += Current
+
+  if Frame == TBinFR:
+    Frame = 0
+    TBMovement = 0
+
+# Adds up frames if animal is not moving
+
+  if Counter &gt;= round(VideoFR/6,0):
+    Counter = 0
+    if Accumulated &lt;= Threshold:
+      Movement += 5
+      TBMovement += 5
+    Accumulated = 0
+
+
+# Result
+
+  return Tuple.Create(Movement/VideoFR/60, TBMovement/VideoFR/60)</ipy:Script>
+                  </Expression>
+                  <Expression xsi:type="ipy:PythonTransform">
+                    <ipy:Name>Time in ROI</ipy:Name>
+                    <ipy:Script>from System import Tuple
+
+# This node calculates the total time the animal spends in different regions of interest
+
+################
+
+TimeSpent = []
+TimeSpentBins = []
+Frame = 0
+
+################
+
+@returns(Tuple[list,list])
+def process(value):
+
+  global TimeSpent, TimeSpentBins, Frame
+
+# Set the relevant settings values
+
+  VideoFR = float(value.Item3[0])
+  TBins = value.Item3[4]
+  Min = int(value.Item3[5][0])*60 + int(value.Item3[5][1])
+  Time = value.Item4.TotalMilliseconds
+  TBinFR = Min * VideoFR
+  
+
+# Establish the ROI values in a list
+
+  Center = value.Item2[0].Activity.Val0
+  TopLeft = value.Item2[1].Activity.Val0
+  TopRight = value.Item2[2].Activity.Val0
+  BottomLeft = value.Item2[3].Activity.Val0
+  BottomRight = value.Item2[4].Activity.Val0
+  CheckTop = value.Item2[5].Activity.Val0
+  CheckLeft = value.Item2[6].Activity.Val0
+  CheckRight = value.Item2[7].Activity.Val0
+  CheckBottom = value.Item2[8].Activity.Val0
+  
+  Positions = [Center,TopLeft,TopRight,BottomLeft,BottomRight,CheckTop,CheckLeft,CheckRight,CheckBottom]
+  
+  c = sum(Positions)
+
+# Check to see if new video has begun, reset all values
+
+  if Time == 0:
+    Frame = 0
+    TimeSpent = [0 for i in range(len(Positions))]
+    TimeSpentBins = [0 for i in range(len(Positions))]
+
+# Count Frames
+
+  Frame += 1
+
+# Adds up time spent in each place each frame
+
+  if c &gt; 1:
+    MaxIndex = Positions.index(max(Positions))
+    TimeSpent[MaxIndex] += 1
+    TimeSpentBins[MaxIndex] += 1
+
+# Time bin calculation
+  
+  if TBins == True:
+    if Frame == TBinFR:
+      Frame = 0
+      TimeSpentBins = [0 for i in range(len(Positions))]
+
+      
+# Results
+
+  return Tuple.Create([i/VideoFR/60 for i in TimeSpent], [i/VideoFR/60 for i in TimeSpentBins])</ipy:Script>
+                  </Expression>
+                  <Expression xsi:type="SubscribeSubject">
+                    <Name>Settings</Name>
+                  </Expression>
+                  <Expression xsi:type="SubscribeSubject">
+                    <Name>TimeStamp</Name>
+                  </Expression>
+                  <Expression xsi:type="SubscribeSubject">
+                    <Name>FileName</Name>
+                  </Expression>
+                  <Expression xsi:type="ipy:PythonTransform">
+                    <ipy:Name>NameToCSV</ipy:Name>
+                    <ipy:Script>@returns(str)
+def process(value):
+
+  a = value.split('\\')
+  b = a[-1].split('.')
+  VideoName = b[0]
+
+  return VideoName</ipy:Script>
+                  </Expression>
+                  <Expression xsi:type="PropertyMapping">
+                    <PropertyMappings>
+                      <Property Name="Value" />
+                    </PropertyMappings>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="StringProperty">
+                      <Value>Trial 2</Value>
+                    </Combinator>
+                  </Expression>
+                  <Expression xsi:type="Combinator">
+                    <Combinator xsi:type="rx:Zip" />
+                  </Expression>
+                  <Expression xsi:type="WorkflowOutput" />
+                </Nodes>
+                <Edges>
+                  <Edge From="0" To="1" Label="Source1" />
+                  <Edge From="0" To="2" Label="Source1" />
+                  <Edge From="0" To="3" Label="Source1" />
+                  <Edge From="0" To="4" Label="Source1" />
+                  <Edge From="0" To="10" Label="Source1" />
+                  <Edge From="1" To="11" Label="Source1" />
+                  <Edge From="2" To="11" Label="Source2" />
+                  <Edge From="3" To="11" Label="Source3" />
+                  <Edge From="4" To="11" Label="Source4" />
+                  <Edge From="5" To="11" Label="Source5" />
+                  <Edge From="6" To="11" Label="Source6" />
+                  <Edge From="7" To="8" Label="Source1" />
+                  <Edge From="8" To="9" Label="Source1" />
+                  <Edge From="9" To="10" Label="Source2" />
+                  <Edge From="10" To="11" Label="Source7" />
+                  <Edge From="11" To="12" Label="Source1" />
+                </Edges>
+              </Workflow>
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>JoinValues</ipy:Name>
+              <ipy:Script>from System import Tuple
+
+
+@returns(list)
+def process(value):
+
+  DataCSV =  [value.Item1.Item1, value.Item2.Item1, value.Item3.Item1]
+  
+  return DataCSV
+</ipy:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:TakeLast">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>TBData</ipy:Name>
+              <ipy:Script>from System import Tuple
+
+TBData = []
+DataCSV = []
+Counter = 0
+
+@returns(list)
+def process(value):
+  
+  global Counter, TBData, DataCSV
+
+  VideoFR = float(value.Item5[0])
+  TBins = value.Item5[4]
+  Min = int(value.Item5[5][0])*60 + int(value.Item5[5][1])
+  Time = value.Item6.TotalMilliseconds
+
+  TBDistance = value.Item1.Item2
+  TBSpeed = value.Item2.Item2
+  TBMobility = value.Item3.Item2
+  
+  TBinFR = Min * VideoFR
+
+  if Time == 0:
+    Counter = 0
+    TBData = []
+
+  Counter += 1
+
+  if Counter == TBinFR:
+    Counter = 0
+    TBData.append(DataCSV)
+
+  DataCSV = [TBDistance, TBSpeed, TBMobility]
+
+  return TBData</ipy:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:TakeLast">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>LastTB</ipy:Name>
+              <ipy:Script>from System import Tuple
+
+@returns(list)
+def process(value):
+
+  TBData = [value.Item1.Item2, value.Item2.Item2, value.Item3.Item2]
+
+  return TBData</ipy:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:TakeLast">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>JoinROI</ipy:Name>
+              <ipy:Script>
+@returns(list)
+def process(value):
+  
+  return value.Item4.Item1
+</ipy:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:TakeLast">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>ROITB</ipy:Name>
+              <ipy:Script>from System import Tuple
+
+ROIBin = []
+Counter = 0
+TBData = []
+
+@returns(list)
+def process(value):
+  
+  global Counter, ROIBin, TBData
+
+  VideoFR = float(value.Item5[0])
+  TBins = value.Item5[4]
+  Min = int(value.Item5[5][0])*60 + int(value.Item5[5][1])
+  Time = value.Item6.TotalMilliseconds
+
+  TBinFR = Min * VideoFR
+
+  if Time == 0:
+    Counter = 0
+    TBData = []
+
+  Counter += 1
+
+  if Counter == TBinFR:
+    Counter = 0
+    TBData.append(ROIBin)
+
+  ROIBin = value.Item4.Item2
+
+  return TBData</ipy:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:TakeLast">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>LastTB</ipy:Name>
+              <ipy:Script>
+@returns(list)
+def process(value):
+
+  return value.Item4.Item2</ipy:Script>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:TakeLast">
+                <rx:Count>1</rx:Count>
+              </Combinator>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Zip" />
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>Settings</Name>
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>FileName</Name>
+            </Expression>
+            <Expression xsi:type="SubscribeSubject">
+              <Name>SaveFolder</Name>
+            </Expression>
+            <Expression xsi:type="Combinator">
+              <Combinator xsi:type="rx:Zip" />
+            </Expression>
+            <Expression xsi:type="ipy:PythonTransform">
+              <ipy:Name>WritetoCSV</ipy:Name>
+              <ipy:Script>from System import Tuple
+import clr
+from string import ascii_uppercase
+clr.AddReference("Microsoft.Office.Interop.Excel")
+#Getting Excel Started
+import Microsoft.Office.Interop.Excel as Excel
+from System.Type import Missing
+import os
+
+row = 1
+
+@returns(bool)
+def process(value):
+
+  global row
+  
+  VideoFR = float(value.Item5[0])
+  Min = int(value.Item5[5][0])*60 + int(value.Item5[5][1])
+  TBinFR = Min * 60 * VideoFR 
+  TBins = value.Item5[4]
+  doROI = value.Item5[11]
+
+  FolderPath, Extension = os.path.splitext(value.Item6)
+  Folder = FolderPath.split('\\')[-2]
+  Filename = FolderPath.split('\\')[-1]
+  TBData = value.Item2
+  LastTB = value.Item3
+  NumBins = len(TBData)
+
+  
+  Distance = value.Item1[0]
+  Speed = value.Item1[1]
+  Mobility = value.Item1[2]
+
+  ROITime = value.Item4.Item1
+  ROIBins = value.Item4.Item2
+  ROILast = value.Item4.Item3
+
+  Counter = 0
+  ToExcel = []
+  ToExcelROI = []
+  ExcelName = "Data_OFT"
+
+  numfiles = 0
+  for i in os.listdir(FolderPath.replace("\\"+Filename,"")):
+    if i.endswith(Extension):
+      numfiles+=1
+
+  if TBins and len(TBData) &gt; 0:
+    for i in range(len(TBData)+1):
+      Counter += 1
+      if i == len(TBData):
+        m, s = divmod(Min*(Counter-1),60)
+        Time = str(m) + "min" + str(s) + "sec to End"
+        ToExcel.append([Folder,Filename,"","",Time,LastTB[0],LastTB[1],LastTB[2]])
+        ToExcelROI.append([Folder,Filename,"","",Time,ROILast[0],sum(ROILast[1:])])
+
+
+      else:
+        m, s = divmod(Min*(Counter-1),60)
+        m2, s2 = divmod(Min*Counter,60)
+        Time = str(m) + "min" + str(s) + "sec to" + str(m2) + "min" + str(s2) + "sec"
+        ToExcel.append([Folder,Filename,"","",Time,TBData[i][0],TBData[i][1],TBData[i][2]])
+        ToExcelROI.append([Folder,Filename,"","",Time,ROIBins[i][0],sum(ROIBins[i][1:])])
+
+
+  Counter = 0
+
+  ToExcel.append([Folder,Filename,"","","Total",Distance,Speed,Mobility])
+  ToExcelROI.append([Folder,Filename,"","","Total",ROITime[0],sum(ROITime[1:])])
+
+  excel = Excel.ApplicationClass()
+  excel.Visible = True # makes the Excel application visible to the use
+  excel.DisplayAlerts = False # Overwrite by default
+  # creating a new one
+  
+  if row == 1:
+    workbook = excel.Workbooks.Add()
+
+    # adding a worksheet
+    if doROI:
+      worksheet2 = workbook.Worksheets.Add()
+      worksheet2.Name = "ROI"
+      ColumnNamesROI = ["Folder", "FileName", "ID", "Condition", "Time", "Time in Center (min)", "Time outside Center (min)"]
+      worksheet2 = workbook.Worksheets("ROI")
+
+      for i in range(len(ColumnNamesROI)):
+        worksheet2.Range[ascii_uppercase[i] + "1"].Value2 = ColumnNamesROI[i]
+
+      worksheet2.ListObjects.Add(
+        SourceType= Excel.XlListObjectSourceType.xlSrcRange,
+        Source= worksheet2.Range["A1:"+ ascii_uppercase[len(ColumnNamesROI)-1] + str(len(ToExcelROI)*numfiles)],
+        XlListObjectHasHeaders= Excel.XlYesNoGuess.xlYes)
+
+      worksheet2.Range[ascii_uppercase[len(ColumnNamesROI)-3] + "2:"+ ascii_uppercase[len(ColumnNamesROI)-1] + str(len(ToExcelROI)*numfiles)].NumberFormat = "0.00"
+
+    worksheet = workbook.Worksheets.Add()
+    worksheet.Name = "Locomotion"
+    ColumnNames = ["Folder", "FileName", "ID", "Condition", "Time", "Total Distance (m)", "Average Instant Speed (cm/s)", "Time not Moving (min)"]  
+
+    for i in range(len(ColumnNames)):
+      worksheet.Range[ascii_uppercase[i] + "1"].Value2 = ColumnNames[i]
+
+    worksheet.ListObjects.Add(
+      SourceType= Excel.XlListObjectSourceType.xlSrcRange,
+      Source= worksheet.Range["A1:"+ ascii_uppercase[len(ColumnNames)-1] + str(len(ToExcel)*numfiles)],
+      XlListObjectHasHeaders= Excel.XlYesNoGuess.xlYes)
+
+    worksheet.Range[ascii_uppercase[len(ColumnNames)-3] + "2:"+ ascii_uppercase[len(ColumnNames)-1] + str(len(ToExcel)*numfiles)].NumberFormat = "0.00"
+
+  else:
+    
+    workbook = excel.Workbooks.Open(FolderPath.replace("\\"+Filename,"") + "\\" + ExcelName + ".xlsx")
+    worksheet = workbook.Worksheets("Locomotion")
+    if doROI:
+        worksheet2 = workbook.Worksheets("ROI")
+
+
+  for rowdata in ToExcel:
+    row += 1
+    for i in range(len(rowdata)):
+      cellname = ascii_uppercase[i] + str(row)
+      cell = worksheet.Range[cellname]
+      cell.Value2 = rowdata[i]
+
+  if doROI:
+
+    row = 1
+    for rowdata2 in ToExcelROI:
+      row += 1
+      for i in range(len(rowdata2)):
+        cellname = ascii_uppercase[i] + str(row)
+        cell = worksheet2.Range[cellname]
+        cell.Value2 = rowdata2[i]
+  if value.Item7 == "":
+    workbook.SaveAs(FolderPath.replace("\\"+Filename,"") + "\\" + ExcelName + ".xlsx", ConflictResolution=Excel.XlSaveConflictResolution.xlLocalSessionChanges)
+  else:
+    workbook.SaveAs(value.Item7 + "\\" + ExcelName + ".xlsx", ConflictResolution=Excel.XlSaveConflictResolution.xlLocalSessionChanges)
+
+  excel.Quit()
+
+  return True</ipy:Script>
+            </Expression>
+            <Expression xsi:type="WorkflowOutput" />
+            <Expression xsi:type="WorkflowInput">
+              <Name>Source1</Name>
+            </Expression>
+            <Expression xsi:type="rx:ReplaySubject">
+              <Name>FileName</Name>
+              <rx:BufferSize xsi:nil="true" />
+            </Expression>
+          </Nodes>
+          <Edges>
+            <Edge From="0" To="1" Label="Source1" />
+            <Edge From="1" To="2" Label="Source1" />
+            <Edge From="2" To="6" Label="Source1" />
+            <Edge From="2" To="8" Label="Source1" />
+            <Edge From="2" To="10" Label="Source1" />
+            <Edge From="2" To="13" Label="Source1" />
+            <Edge From="3" To="6" Label="Source2" />
+            <Edge From="4" To="5" Label="Source1" />
+            <Edge From="5" To="6" Label="Source3" />
+            <Edge From="6" To="7" Label="Source1" />
+            <Edge From="6" To="9" Label="Source1" />
+            <Edge From="7" To="15" Label="Source1" />
+            <Edge From="8" To="12" Label="Source1" />
+            <Edge From="8" To="13" Label="Source2" />
+            <Edge From="9" To="13" Label="Source3" />
+            <Edge From="10" To="11" Label="Source1" />
+            <Edge From="11" To="13" Label="Source4" />
+            <Edge From="12" To="13" Label="Source5" />
+            <Edge From="13" To="14" Label="Source1" />
+            <Edge From="14" To="15" Label="Source2" />
+            <Edge From="15" To="17" Label="Source1" />
+            <Edge From="16" To="17" Label="Source2" />
+            <Edge From="17" To="18" Label="Source1" />
+            <Edge From="17" To="22" Label="Source1" />
+            <Edge From="18" To="19" Label="Source1" />
+            <Edge From="19" To="20" Label="Source1" />
+            <Edge From="20" To="21" Label="Source1" />
+            <Edge From="21" To="26" Label="Source1" />
+            <Edge From="22" To="23" Label="Source1" />
+            <Edge From="23" To="24" Label="Source1" />
+            <Edge From="24" To="25" Label="Source1" />
+            <Edge From="25" To="26" Label="Source2" />
+            <Edge From="26" To="30" Label="Source1" />
+            <Edge From="27" To="28" Label="Source1" />
+            <Edge From="28" To="29" Label="Source1" />
+            <Edge From="29" To="30" Label="Source2" />
+            <Edge From="30" To="31" Label="Source1" />
+            <Edge From="30" To="35" Label="Source1" />
+            <Edge From="31" To="32" Label="Source1" />
+            <Edge From="31" To="33" Label="Source2" />
+            <Edge From="32" To="33" Label="Source1" />
+            <Edge From="33" To="34" Label="Source1" />
+            <Edge From="34" To="38" Label="Source1" />
+            <Edge From="35" To="38" Label="Source2" />
+            <Edge From="36" To="38" Label="Source3" />
+            <Edge From="37" To="38" Label="Source4" />
+            <Edge From="38" To="39" Label="Source1" />
+            <Edge From="39" To="40" Label="Source1" />
+            <Edge From="39" To="42" Label="Source1" />
+            <Edge From="39" To="44" Label="Source1" />
+            <Edge From="39" To="46" Label="Source1" />
+            <Edge From="39" To="48" Label="Source1" />
+            <Edge From="39" To="50" Label="Source1" />
+            <Edge From="40" To="41" Label="Source1" />
+            <Edge From="41" To="56" Label="Source1" />
+            <Edge From="42" To="43" Label="Source1" />
+            <Edge From="43" To="56" Label="Source2" />
+            <Edge From="44" To="45" Label="Source1" />
+            <Edge From="45" To="56" Label="Source3" />
+            <Edge From="46" To="47" Label="Source1" />
+            <Edge From="47" To="52" Label="Source1" />
+            <Edge From="48" To="49" Label="Source1" />
+            <Edge From="49" To="52" Label="Source2" />
+            <Edge From="50" To="51" Label="Source1" />
+            <Edge From="51" To="52" Label="Source3" />
+            <Edge From="52" To="56" Label="Source4" />
+            <Edge From="53" To="56" Label="Source5" />
+            <Edge From="54" To="56" Label="Source6" />
+            <Edge From="55" To="56" Label="Source7" />
+            <Edge From="56" To="57" Label="Source1" />
+            <Edge From="56" To="58" Label="Source1" />
+            <Edge From="59" To="60" Label="Source1" />
+          </Edges>
+        </Workflow>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:Concat" />
+      </Expression>
+      <Expression xsi:type="MemberSelector">
+        <Selector>Item2</Selector>
+      </Expression>
+      <Expression xsi:type="rx:ReplaySubject">
+        <Name>SaveFolder</Name>
+        <rx:BufferSize xsi:nil="true" />
+      </Expression>
+    </Nodes>
+    <Edges>
+      <Edge From="0" To="5" Label="Source1" />
+      <Edge From="1" To="2" Label="Source1" />
+      <Edge From="1" To="7" Label="Source1" />
+      <Edge From="2" To="3" Label="Source1" />
+      <Edge From="3" To="4" Label="Source1" />
+      <Edge From="4" To="5" Label="Source2" />
+      <Edge From="5" To="6" Label="Source1" />
+      <Edge From="7" To="8" Label="Source1" />
+    </Edges>
+  </Workflow>
+</WorkflowBuilder>
