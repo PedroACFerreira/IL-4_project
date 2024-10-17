@@ -21,6 +21,9 @@ Repository includes the following:
   - Python - dLight data quantification (multiple) (TBD)
   - ImageJ Macro - Convex hull from Imaris Surface
   - ImageJ Macro - Count cells with Find Maxima
+  - R - General Additive Mixed Models for Sholl Analysis
+  - R - Binomial Generalized Linear Mixed Model
+  - R - Linear Mixed Models
 
 ##
 
